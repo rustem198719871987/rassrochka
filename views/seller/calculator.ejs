@@ -1,0 +1,48 @@
+<%- include('../partials/shell_start') %>
+<div class="page-head">
+  <div>
+    <h1>Калькулятор рассрочки</h1>
+    <div class="sub">Наценка <%= settings.markupPercent %>% от стоимости за каждый месяц</div>
+  </div>
+</div>
+<div class="two-col" data-calc-form>
+  <div>
+    <div class="card">
+      <div class="grid">
+        <div class="field col-6"><label for="c_price">Стоимость товара, ₽</label><input class="input" id="c_price" inputmode="decimal" placeholder="45 000" data-calc="price" autofocus></div>
+        <div class="field col-6"><label for="c_down">Первый взнос, ₽</label><input class="input" id="c_down" inputmode="decimal" placeholder="0" data-calc="down"></div>
+      </div>
+      <div class="terms">
+        <% for (let m = settings.minMonths; m <= settings.maxMonths; m++) { %>
+          <label><input type="radio" name="months" value="<%= m %>" <%= m === Math.min(3, settings.maxMonths) ? 'checked' : '' %> data-calc="months"><span><%= m %> мес</span></label>
+        <% } %>
+      </div>
+    </div>
+    <h3>Сравнение по срокам</h3>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Срок</th><th class="num">Наценка</th><th class="num">Итого</th><th class="num">Платёж в месяц</th></tr></thead>
+        <tbody data-calc-table data-min="<%= settings.minMonths %>" data-max="<%= settings.maxMonths %>"><tr><td colspan="4" class="empty">Введите стоимость товара</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+  <div class="sticky">
+    <div class="card yellow summary">
+      <div class="small" style="font-weight:700">Ежемесячный платёж</div>
+      <div class="big" data-calc-out="monthly">—</div>
+      <hr>
+      <div class="row"><span>Стоимость товара</span><b data-calc-out="price">—</b></div>
+      <div class="row"><span>Наценка <span data-calc-out="pct"></span></span><b data-calc-out="markup">—</b></div>
+      <div class="row"><span>Итого по договору</span><b data-calc-out="total">—</b></div>
+      <div class="row"><span>Первый взнос</span><b data-calc-out="down">—</b></div>
+      <div class="row"><span>В рассрочку</span><b data-calc-out="financed">—</b></div>
+    </div>
+    <div class="card">
+      <h3>График платежей</h3>
+      <div data-calc-schedule class="small muted">—</div>
+    </div>
+    <a class="btn btn-dark btn-block" href="/app/new">Оформить заявку</a>
+  </div>
+</div>
+<script>window.MARKUP = <%- JSON.stringify(settings.markupPercent) %>;</script>
+<%- include('../partials/shell_end') %>

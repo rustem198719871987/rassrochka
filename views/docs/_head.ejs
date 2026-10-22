@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= title %></title>
+  <link rel="icon" href="/static/img/logo-mark.svg" type="image/svg+xml">
+  <style>
+    :root { --yellow: #ffd400; --black: #111; --muted: #666; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: #f2f2f3; color: #111; }
+    body { font: 14px/1.55 Georgia, 'Times New Roman', serif; }
+    .toolbar { position: sticky; top: 0; background: #111; color: #fff; padding: 10px 16px; display: flex; gap: 10px; align-items: center; justify-content: space-between; font-family: system-ui, sans-serif; z-index: 2; }
+    .toolbar button, .toolbar a { background: var(--yellow); color: #111; border: 0; border-radius: 10px; padding: 9px 16px; font-weight: 700; cursor: pointer; text-decoration: none; font-size: 14px; }
+    .toolbar a.sec { background: transparent; color: var(--yellow); }
+    .page { max-width: 820px; margin: 24px auto; background: #fff; padding: 48px 56px; box-shadow: 0 4px 24px rgba(0,0,0,.08); }
+    .brand { display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid var(--yellow); padding-bottom: 12px; margin-bottom: 24px; font-family: system-ui, sans-serif; }
+    .brand b { font-size: 18px; } .brand .tag { background: var(--yellow); padding: 0 6px; border-radius: 6px; }
+    h1 { font-size: 18px; text-align: center; margin: 0 0 4px; text-transform: uppercase; }
+    h2 { font-size: 15px; margin: 22px 0 8px; }
+    .center { text-align: center; } .right { text-align: right; } .muted { color: var(--muted); }
+    .meta { display: flex; justify-content: space-between; margin: 14px 0 20px; }
+    p { margin: 0 0 8px; text-align: justify; }
+    table { width: 100%; border-collapse: collapse; margin: 8px 0 12px; }
+    td, th { border: 1px solid #999; padding: 6px 8px; text-align: left; vertical-align: top; }
+    th { background: #f4f4f4; }
+    .num { text-align: right; white-space: nowrap; }
+    .sign { display: grid; grid-template-columns: 1fr 1fr; gap: 32px; margin-top: 28px; }
+    .sign .line { border-bottom: 1px solid #111; height: 32px; margin: 8px 0 4px; }
+    .stamp { border: 2px solid #1f9d55; color: #1f9d55; border-radius: 8px; padding: 8px 10px; font: 12px/1.4 system-ui, sans-serif; margin-top: 8px; }
+    .qr { display: flex; gap: 20px; align-items: center; border: 2px dashed var(--yellow); padding: 14px; border-radius: 10px; }
+    .qr img { width: 150px; height: 150px; }
+    .pb { page-break-before: always; }
+    @media (max-width: 700px) { .page { padding: 24px 18px; margin: 0; } .sign { grid-template-columns: 1fr; } .qr { flex-direction: column; } }
+    @media print {
+      @page { size: A4; margin: 16mm 14mm; }
+      html, body { background: #fff; }
+      .toolbar { display: none; }
+      .page { box-shadow: none; margin: 0; padding: 0; max-width: none; }
+    }
+  </style>
+</head>
+<body>
+<div class="toolbar">
+  <a class="sec" href="/app/<%= a.id %>">← К заявке</a>
+  <button type="button" onclick="window.print()">Распечатать / сохранить PDF</button>
+</div>
+<div class="page">
+  <div class="brand"><b>Рассрочка<span class="tag">.Топ</span></b><span class="muted"><%= a.number %></span></div>

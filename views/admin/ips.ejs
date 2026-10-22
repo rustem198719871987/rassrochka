@@ -1,0 +1,25 @@
+<%- include('../partials/shell_start') %>
+<div class="page-head">
+  <div><h1>ИП и реквизиты</h1><div class="sub">Реквизиты подставляются в договор, график платежей и QR-код для оплаты</div></div>
+  <a class="btn btn-primary" href="/admin/ips/new">+ Добавить ИП</a>
+</div>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>ИП</th><th>ИНН</th><th>Банк</th><th>Расчётный счёт</th><th class="num">Продавцов</th><th class="num">Сделок</th><th>Статус</th></tr></thead>
+    <tbody>
+      <% if (!rows.length) { %><tr><td colspan="7" class="empty">ИП ещё не добавлены</td></tr><% } %>
+      <% for (const r of rows) { %>
+        <tr class="link-row" data-href="/admin/ips/<%= r.id %>">
+          <td><a href="/admin/ips/<%= r.id %>"><b><%= r.name %></b></a></td>
+          <td class="mono"><%= r.inn %></td>
+          <td class="small"><%= r.bank_name %><div class="muted">БИК <%= r.bik %></div></td>
+          <td class="mono small"><%= r.account %></td>
+          <td class="num"><%= r.sellers %></td>
+          <td class="num"><%= r.deals %></td>
+          <td><span class="pill <%= r.active ? 'approved' : 'cancelled' %>"><%= r.active ? 'Активен' : 'Отключён' %></span></td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/shell_end') %>

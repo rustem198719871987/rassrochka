@@ -1,0 +1,27 @@
+<%# ФИО, дата рождения, паспорт и прописка — общие для продавца и клиента %>
+<fieldset>
+  <legend>Личные данные</legend>
+  <div class="grid">
+    <%- include('field', { name: 'last_name', label: 'Фамилия', req: true, col: 'col-4', attrs: 'autocomplete="family-name"' }) %>
+    <%- include('field', { name: 'first_name', label: 'Имя', req: true, col: 'col-4', attrs: 'autocomplete="given-name"' }) %>
+    <%- include('field', { name: 'middle_name', label: 'Отчество', col: 'col-4', attrs: 'autocomplete="additional-name"' }) %>
+    <%- include('field', { name: 'birth_date', label: 'Дата рождения', req: true, type: 'date', col: 'col-4' }) %>
+    <%- locals.extraPersonal || '' %>
+  </div>
+</fieldset>
+<fieldset>
+  <legend>Паспорт РФ</legend>
+  <div class="grid">
+    <%- include('field', { name: 'passport_series', label: 'Серия', req: true, col: 'col-3', placeholder: '0000', attrs: 'inputmode="numeric" maxlength="4" data-mask="digits"' }) %>
+    <%- include('field', { name: 'passport_number', label: 'Номер', req: true, col: 'col-3', placeholder: '000000', attrs: 'inputmode="numeric" maxlength="6" data-mask="digits"' }) %>
+    <%- include('field', { name: 'passport_issue_date', label: 'Дата выдачи', req: true, type: 'date', col: 'col-3' }) %>
+    <%- include('field', { name: 'passport_dept_code', label: 'Код подразделения', req: true, col: 'col-3', placeholder: '000-000', attrs: 'inputmode="numeric" maxlength="7" data-mask="dept"' }) %>
+    <%- include('field', { name: 'passport_issued_by', label: 'Кем выдан', req: true, type: 'textarea' }) %>
+  </div>
+</fieldset>
+<fieldset>
+  <legend>Адрес регистрации (прописка)</legend>
+  <div class="grid">
+    <%- include('field', { name: 'reg_address', label: 'Индекс, регион, город, улица, дом, квартира', req: true, type: 'textarea' }) %>
+  </div>
+</fieldset>

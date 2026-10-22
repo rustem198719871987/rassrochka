@@ -1,0 +1,31 @@
+<%- include('../partials/auth_start') %>
+<div class="auth-card wide">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+    <span class="pill <%= user.status %>"><%= USER_STATUS[user.status] %></span>
+    <form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-sm" type="submit">Выйти</button></form>
+  </div>
+  <%- include('../partials/flash') %>
+  <% if (user.status === 'pending') { %>
+    <h1>Заявка на проверке</h1>
+    <p class="sub">Администратор проверит ваши данные. После одобрения здесь откроется кабинет продавца — просто обновите страницу.</p>
+    <dl class="kv">
+      <dt>ФИО</dt><dd><%= fio(user) %></dd>
+      <dt>Телефон</dt><dd><%= phone(user.phone) %></dd>
+      <dt>Паспорт</dt><dd><%= user.passport_series %> <%= user.passport_number %></dd>
+      <dt>Прописка</dt><dd><%= user.reg_address %></dd>
+      <dt>Выбранные ИП</dt><dd><%= ips.filter(i => (form.ip_ids || []).includes(i.id)).map(i => i.name).join(', ') || '—' %></dd>
+    </dl>
+  <% } else if (user.status === 'rejected') { %>
+    <h1>Заявка отклонена</h1>
+    <p class="sub"><%= user.admin_comment || 'Администратор отклонил заявку на регистрацию.' %></p>
+  <% } else if (user.status === 'correction') { %>
+    <h1>Нужно исправить данные</h1>
+    <div class="alert alert-warn"><b>Комментарий администратора:</b> <%= user.admin_comment %></div>
+    <form method="post" action="/status" novalidate>
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <%- include('_seller_form', { phoneLocked: true }) %>
+      <button class="btn btn-primary btn-lg btn-block" type="submit">Отправить повторно</button>
+    </form>
+  <% } %>
+</div>
+<%- include('../partials/auth_end') %>

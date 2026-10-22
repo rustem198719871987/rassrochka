@@ -1,0 +1,25 @@
+<%- include('../partials/person') %>
+<fieldset>
+  <legend>Контакты</legend>
+  <div class="grid">
+    <%- include('../partials/field', { name: 'phone', label: 'Мобильный телефон (логин)', req: true, type: 'tel', col: 'col-6', placeholder: '+7 (___) ___-__-__', attrs: (locals.phoneLocked ? 'readonly ' : '') + 'autocomplete="tel" data-mask="phone"' }) %>
+    <%- include('../partials/field', { name: 'email', label: 'E-mail', type: 'email', col: 'col-6', attrs: 'autocomplete="email"' }) %>
+  </div>
+</fieldset>
+<fieldset>
+  <legend>ИП, от имени которых будете оформлять рассрочку</legend>
+  <% if (!ips.length) { %>
+    <div class="alert alert-warn">Администратор ещё не добавил ни одного ИП. Вы сможете выбрать ИП позже — его прикрепит администратор.</div>
+  <% } else { %>
+    <div class="check-list">
+      <% for (const ip of ips) { %>
+        <label class="check card">
+          <input type="checkbox" name="ip_ids" value="<%= ip.id %>" <%= (form.ip_ids || []).map(Number).includes(ip.id) ? 'checked' : '' %>>
+          <span><b><%= ip.name %></b><br><span class="muted small">ИНН <%= ip.inn %> · <%= ip.address %></span></span>
+        </label>
+      <% } %>
+    </div>
+    <% if (errors.ip_ids) { %><div class="field has-error"><div class="error"><%= errors.ip_ids %></div></div><% } %>
+    <p class="muted small">Можно выбрать несколько. Итоговый список подтвердит администратор.</p>
+  <% } %>
+</fieldset>

@@ -1,0 +1,10 @@
+<dl class="kv" style="grid-template-columns:96px minmax(0,1fr);font-size:13px">
+  <dt>Получатель</dt><dd><%= ip.full_name %></dd>
+  <dt>ИНН</dt><dd class="mono"><%= ip.inn %></dd>
+  <dt>ОГРНИП</dt><dd class="mono"><%= ip.ogrnip %></dd>
+  <dt>Р/с</dt><dd class="mono"><%= ip.account %></dd>
+  <dt>Банк</dt><dd><%= ip.bank_name %></dd>
+  <dt>БИК</dt><dd class="mono"><%= ip.bik %></dd>
+  <dt>К/с</dt><dd class="mono"><%= ip.corr_account %></dd>
+  <dt>Назначение</dt><dd>Оплата по договору рассрочки <%= a.number %>, <%= fio(a) %></dd>
+</dl>

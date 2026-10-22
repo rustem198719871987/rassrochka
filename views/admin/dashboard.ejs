@@ -1,0 +1,47 @@
+<%- include('../partials/shell_start') %>
+<div class="page-head">
+  <div><h1>Панель администратора</h1><div class="sub">Продавцы, ИП и оформленные рассрочки</div></div>
+  <div class="actions">
+    <a class="btn btn-outline" href="/admin/ips/new">+ Добавить ИП</a>
+    <a class="btn btn-primary" href="/admin/sellers/new">+ Добавить продавца</a>
+  </div>
+</div>
+<div class="stats">
+  <a class="stat accent" href="/admin/sellers?status=pending"><div class="label">Заявки продавцов на проверке</div><div class="value"><%= stats.pending %></div><div class="extra">Ожидают решения</div></a>
+  <a class="stat" href="/admin/sellers?status=approved"><div class="label">Активные продавцы</div><div class="value"><%= stats.sellers %></div><div class="extra">ИП в работе: <%= stats.ips %></div></a>
+  <a class="stat" href="/app/search?status=signed"><div class="label">Оформлено рассрочек</div><div class="value"><%= stats.signed.c %></div><div class="extra">на <%= money(stats.signed.s) %></div></a>
+  <a class="stat" href="/app/search?status=signed"><div class="label">За этот месяц</div><div class="value"><%= stats.month.c %></div><div class="extra">на <%= money(stats.month.s) %></div></a>
+  <div class="stat"><div class="label">Просроченные платежи</div><div class="value" style="<%= stats.overdue.c ? 'color:var(--err)' : '' %>"><%= stats.overdue.c %></div><div class="extra">на <%= money(stats.overdue.s) %></div></div>
+</div>
+
+<div class="two-col" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+  <div>
+    <h2>Новые заявки продавцов</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Продавец</th><th>Телефон</th><th>Дата</th></tr></thead>
+        <tbody>
+          <% if (!pendingSellersList.length) { %><tr><td colspan="3" class="empty">Нет заявок на проверке</td></tr><% } %>
+          <% for (const s of pendingSellersList) { %>
+            <tr class="link-row" data-href="/admin/sellers/<%= s.id %>"><td><a href="/admin/sellers/<%= s.id %>"><b><%= fio(s) %></b></a></td><td class="nowrap"><%= phone(s.phone) %></td><td class="small"><%= date(s.created_at) %></td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div>
+    <h2>Последние рассрочки</h2>
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Договор</th><th>Клиент</th><th class="num">Сумма</th><th>Статус</th></tr></thead>
+        <tbody>
+          <% if (!recent.length) { %><tr><td colspan="4" class="empty">Пока нет заявок</td></tr><% } %>
+          <% for (const r of recent) { %>
+            <tr class="link-row" data-href="/app/<%= r.id %>"><td class="nowrap"><a href="/app/<%= r.id %>"><b><%= r.number %></b></a></td><td><%= fioShort(r) || '—' %></td><td class="num"><%= money(r.total_amount) %></td><td><span class="pill <%= r.status %>"><%= APP_STATUS[r.status] %></span></td></tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<%- include('../partials/shell_end') %>

@@ -1,0 +1,22 @@
+<%- include('../partials/auth_start') %>
+<div class="auth-card">
+  <div class="tabs" role="tablist">
+    <a href="/login" class="active" role="tab" aria-selected="true">Вход</a>
+    <a href="/register" role="tab" aria-selected="false">Регистрация</a>
+  </div>
+  <h1>Вход в личный кабинет</h1>
+  <p class="sub">По номеру телефона</p>
+  <% if (locals.error) { %><div class="alert alert-error"><%= error %></div><% } %>
+  <%- include('../partials/flash') %>
+  <form method="post" action="/login" novalidate>
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <%- include('../partials/field', { name: 'phone', label: 'Номер телефона', req: true, type: 'tel', placeholder: '+7 (___) ___-__-__', attrs: 'autocomplete="tel" data-mask="phone" autofocus' }) %>
+    <%- include('../partials/field', { name: 'password', label: 'Пароль', req: true, type: 'password', value: '', attrs: 'autocomplete="current-password"' }) %>
+    <button class="btn btn-primary btn-lg btn-block" type="submit" style="margin-top:12px">Войти</button>
+  </form>
+  <details class="auth-links">
+    <summary style="cursor:pointer">Не получается войти?</summary>
+    <p class="muted small" style="font-weight:500">Обратитесь к администратору<%= settings.supportPhone ? ' по телефону ' + settings.supportPhone : '' %> — он сбросит пароль.</p>
+  </details>
+</div>
+<%- include('../partials/auth_end') %>

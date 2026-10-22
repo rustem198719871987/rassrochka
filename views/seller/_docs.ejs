@@ -1,0 +1,9 @@
+<% const DOC_LABEL = { passport_main: 'Паспорт — разворот с фото', passport_reg: 'Паспорт — прописка', client_photo: 'Фото клиента' }; %>
+<div class="doc-thumbs" data-doc-thumbs>
+  <% for (const d of docs) { %>
+    <a href="/app/<%= a.id %>/docs/<%= d.id %>" target="_blank" class="doc-thumb">
+      <img src="/app/<%= a.id %>/docs/<%= d.id %>" alt="<%= DOC_LABEL[d.kind] %>" loading="lazy">
+      <span><%= DOC_LABEL[d.kind] %></span>
+    </a>
+  <% } %>
+</div>

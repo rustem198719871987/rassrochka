@@ -1,0 +1,171 @@
+<%- include('../partials/head') %>
+<style>
+  body { background: var(--surface); }
+  .m-head { background: var(--black); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; }
+  .m-head .logo-word { font-size: 18px; }
+  .m-head .logo img { width: 30px; height: 30px; }
+  .m-head .num { color: var(--yellow); font-weight: 700; font-size: 13px; }
+  .m-wrap { max-width: 520px; margin: 0 auto; padding: 18px 16px 120px; }
+  .m-wrap h1 { font-size: 22px; }
+  .slot { background: var(--white); border-radius: 18px; padding: 16px; margin-bottom: 14px; border: 2px solid transparent; }
+  .slot.filled { border-color: var(--black); }
+  .slot .t { font-weight: 800; display: flex; justify-content: space-between; gap: 8px; }
+  .slot .t .req { color: var(--err); font-size: 12px; font-weight: 700; }
+  .slot .t .ok { color: var(--ok); font-size: 13px; }
+  .slot .d { color: var(--muted); font-size: 13px; margin: 4px 0 12px; }
+  .pick { display: flex; align-items: center; justify-content: center; gap: 10px; border: 2px dashed #c9c9cf; border-radius: 14px; padding: 22px; font-weight: 700; cursor: pointer; background: var(--surface); }
+  .pick svg { width: 26px; height: 26px; }
+  .pick input { display: none; }
+  .preview { display: none; }
+  .slot.filled .preview { display: block; }
+  .slot.filled .pick { display: none; }
+  .preview canvas { width: 100%; height: auto; border-radius: 12px; background: #000; display: block; }
+  .preview .actions { margin-top: 10px; }
+  .send-bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--white); box-shadow: 0 -6px 24px rgba(0,0,0,.08); }
+  .send-bar .btn { max-width: 488px; margin: 0 auto; display: flex; }
+  .center-card { background: var(--white); border-radius: 20px; padding: 28px 22px; text-align: center; }
+  .big-ico { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 14px; font-size: 34px; font-weight: 800; }
+</style>
+<header class="m-head">
+  <%- include('../partials/logo', { inverse: true }) %>
+  <% if (s && s.app) { %><span class="num">Заявка <%= s.app.number %></span><% } %>
+</header>
+<div class="m-wrap">
+<% if (state !== 'ok') { %>
+  <div class="center-card">
+    <% if (state === 'sent') { %>
+      <div class="big-ico" style="background:var(--ok-soft);color:var(--ok)">✓</div>
+      <h1>Фото отправлены</h1>
+      <p class="muted">Данные заполняются в анкете на компьютере. Проверьте их там.</p>
+    <% } else { %>
+      <div class="big-ico" style="background:var(--warn-soft);color:var(--warn)">!</div>
+      <h1><%= state === 'expired' ? 'Ссылка устарела' : 'Ссылка недействительна' %></h1>
+      <p class="muted">Нажмите на компьютере «Показать QR-код» ещё раз и отсканируйте новый код.</p>
+    <% } %>
+  </div>
+<% } else { %>
+  <div id="form-view">
+    <h1>Фото документов клиента</h1>
+    <p class="muted" style="margin-top:0">Снимайте при хорошем свете, без бликов, чтобы страница целиком попала в кадр.</p>
+    <% const slots = [
+      ['passport_main', 'Паспорт — разворот с фото', 'Страницы 2–3. Строки с символами «<<<» внизу должны быть чёткими — по ним читаются данные.', true],
+      ['passport_reg', 'Паспорт — прописка', 'Страница со штампом о регистрации по месту жительства.', false],
+      ['client_photo', 'Фото клиента', 'Лицо клиента крупно, можно с паспортом в руках.', false],
+    ]; %>
+    <% for (const [kind, label, hint, req] of slots) { %>
+      <div class="slot" data-slot="<%= kind %>">
+        <div class="t"><span><%= label %></span><span class="<%= req ? 'req' : 'muted small' %>"><%= req ? 'обязательно' : 'желательно' %></span></div>
+        <div class="d"><%= hint %></div>
+        <label class="pick">
+          <%- include('../partials/icon', { icon: 'camera' }) %>
+          <span>Сфотографировать</span>
+          <input type="file" accept="image/*">
+        </label>
+        <div class="preview">
+          <canvas></canvas>
+          <div class="actions">
+            <button type="button" class="btn btn-outline btn-sm" data-act="rotate">↻ Повернуть</button>
+            <button type="button" class="btn btn-ghost btn-sm" data-act="retake">Переснять</button>
+          </div>
+        </div>
+      </div>
+    <% } %>
+    <div class="alert alert-error" id="err" style="display:none"></div>
+  </div>
+  <div id="done-view" class="center-card" style="display:none">
+    <div class="big-ico" style="background:var(--ok-soft);color:var(--ok)">✓</div>
+    <h1>Отправлено</h1>
+    <p class="muted">Данные паспорта появятся в анкете на компьютере через несколько секунд. Проверьте их перед сохранением.</p>
+  </div>
+  <div class="send-bar" id="send-bar">
+    <button class="btn btn-primary btn-lg btn-block" id="send" disabled>Отправить</button>
+  </div>
+<% } %>
+</div>
+<% if (state === 'ok') { %>
+<script>
+(function () {
+  var MAX = 2200;
+  var state = {};
+  var sendBtn = document.getElementById('send');
+  var err = document.getElementById('err');
+
+  function draw(kind) {
+    var st = state[kind];
+    var c = document.querySelector('[data-slot="' + kind + '"] canvas');
+    var w = st.img.naturalWidth, h = st.img.naturalHeight;
+    var k = Math.min(1, MAX / Math.max(w, h));
+    w = Math.round(w * k); h = Math.round(h * k);
+    var turned = st.rot % 180 !== 0;
+    c.width = turned ? h : w; c.height = turned ? w : h;
+    var ctx = c.getContext('2d');
+    ctx.translate(c.width / 2, c.height / 2);
+    ctx.rotate(st.rot * Math.PI / 180);
+    ctx.drawImage(st.img, -w / 2, -h / 2, w, h);
+  }
+
+  function refresh() {
+    sendBtn.disabled = !state.passport_main;
+  }
+
+  document.querySelectorAll('[data-slot]').forEach(function (slot) {
+    var kind = slot.dataset.slot;
+    var input = slot.querySelector('input[type=file]');
+    input.addEventListener('change', function () {
+      var f = input.files[0];
+      if (!f) return;
+      var img = new Image();
+      img.onload = function () {
+        state[kind] = { img: img, rot: 0 };
+        slot.classList.add('filled');
+        draw(kind);
+        refresh();
+      };
+      img.onerror = function () { alert('Не удалось открыть фото. Попробуйте ещё раз.'); };
+      img.src = URL.createObjectURL(f);
+    });
+    slot.querySelector('[data-act=rotate]').addEventListener('click', function () {
+      state[kind].rot = (state[kind].rot + 90) % 360;
+      draw(kind);
+    });
+    slot.querySelector('[data-act=retake]').addEventListener('click', function () {
+      delete state[kind];
+      slot.classList.remove('filled');
+      input.value = '';
+      input.click();
+      refresh();
+    });
+  });
+
+  function toBlob(canvas) {
+    return new Promise(function (resolve) { canvas.toBlob(resolve, 'image/jpeg', 0.88); });
+  }
+
+  sendBtn.addEventListener('click', async function () {
+    err.style.display = 'none';
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Отправляем…';
+    try {
+      var fd = new FormData();
+      for (var kind in state) {
+        var blob = await toBlob(document.querySelector('[data-slot="' + kind + '"] canvas'));
+        fd.append(kind, blob, kind + '.jpg');
+      }
+      var res = await fetch(location.pathname, { method: 'POST', body: fd });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) throw new Error(data.error || 'Ошибка отправки');
+      document.getElementById('form-view').style.display = 'none';
+      document.getElementById('send-bar').style.display = 'none';
+      document.getElementById('done-view').style.display = '';
+    } catch (e) {
+      err.textContent = e.message === 'Failed to fetch' ? 'Нет связи с сервером. Проверьте интернет и попробуйте снова.' : e.message;
+      err.style.display = '';
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Отправить';
+    }
+  });
+})();
+</script>
+<% } %>
+</body>
+</html>

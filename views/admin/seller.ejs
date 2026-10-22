@@ -1,0 +1,80 @@
+<%- include('../partials/shell_start') %>
+<% const hidden = `<input type="hidden" name="_csrf" value="${csrf}">`; %>
+<div class="page-head">
+  <div>
+    <h1><%= seller ? fio(seller) : 'Новый продавец' %></h1>
+    <% if (seller) { %><div class="sub"><span class="pill <%= seller.status %>"><%= USER_STATUS[seller.status] %></span> &nbsp;<%= phone(seller.phone) %> · зарегистрирован <%= date(seller.created_at) %></div><% } %>
+  </div>
+  <a class="btn btn-ghost" href="/admin/sellers">← Все продавцы</a>
+</div>
+
+<% if (seller) { %>
+  <div class="card <%= seller.status === 'pending' ? 'yellow' : 'soft' %>">
+    <h2 style="margin-bottom:6px"><%= seller.status === 'pending' ? 'Решение по заявке' : 'Управление доступом' %></h2>
+    <% if (seller.admin_comment) { %><p class="small" style="margin-top:0">Последний комментарий: <%= seller.admin_comment %></p><% } %>
+    <form method="post" action="/admin/sellers/<%= seller.id %>/decision">
+      <%- hidden %>
+      <div class="field"><label for="cm">Комментарий для продавца (обязателен при отправке на корректировку)</label><input class="input" id="cm" name="comment" placeholder="Например: неверно указан код подразделения"></div>
+      <div class="actions">
+        <% if (seller.status !== 'approved' && seller.status !== 'blocked') { %><button class="btn btn-ok" name="decision" value="approve">Одобрить</button><% } %>
+        <% if (seller.status === 'pending') { %>
+          <button class="btn btn-outline" name="decision" value="correction">На корректировку</button>
+          <button class="btn btn-danger" name="decision" value="reject">Отклонить</button>
+        <% } %>
+        <% if (seller.status === 'approved') { %><button class="btn btn-danger" name="decision" value="block">Заблокировать</button><% } %>
+        <% if (seller.status === 'blocked') { %><button class="btn btn-ok" name="decision" value="unblock">Разблокировать</button><% } %>
+      </div>
+    </form>
+  </div>
+<% } %>
+
+<form method="post" action="<%= seller ? `/admin/sellers/${seller.id}` : '/admin/sellers/new' %>" class="card" novalidate>
+  <%- hidden %>
+  <% if (Object.keys(errors).length) { %><div class="alert alert-error">Проверьте выделенные поля</div><% } %>
+  <fieldset>
+    <legend>Прикреплённые ИП</legend>
+    <% if (!ips.length) { %><div class="alert alert-warn">Сначала <a href="/admin/ips/new">добавьте ИП</a>.</div><% } %>
+    <div class="check-list" style="grid-template-columns:repeat(auto-fill,minmax(260px,1fr))">
+      <% for (const ip of ips) { %>
+        <label class="check card">
+          <input type="checkbox" name="ip_ids" value="<%= ip.id %>" <%= (form.ip_ids || []).map(Number).includes(ip.id) ? 'checked' : '' %>>
+          <span><b><%= ip.name %></b><%= ip.active ? '' : ' (неактивен)' %><br><span class="muted small">ИНН <%= ip.inn %></span></span>
+        </label>
+      <% } %>
+    </div>
+  </fieldset>
+  <%- include('../partials/person') %>
+  <fieldset>
+    <legend>Контакты и вход</legend>
+    <div class="grid">
+      <% if (seller) { %>
+        <div class="field col-6"><label>Телефон (логин)</label><div style="padding:8px 0;font-weight:600"><%= phone(seller.phone) %></div></div>
+      <% } else { %>
+        <%- include('../partials/field', { name: 'phone', label: 'Телефон (логин)', req: true, type: 'tel', col: 'col-6', attrs: 'data-mask="phone"' }) %>
+      <% } %>
+      <%- include('../partials/field', { name: 'email', label: 'E-mail', type: 'email', col: 'col-6' }) %>
+      <% if (!seller) { %>
+        <%- include('../partials/field', { name: 'password', label: 'Пароль', req: true, col: 'col-6', hint: 'Передайте продавцу вместе с логином' }) %>
+      <% } %>
+    </div>
+  </fieldset>
+  <button class="btn btn-dark btn-lg" type="submit"><%= seller ? 'Сохранить изменения' : 'Добавить и одобрить' %></button>
+</form>
+
+<% if (seller) { %>
+  <div class="card soft">
+    <form method="post" action="/admin/sellers/<%= seller.id %>/password" class="actions" onsubmit="return confirm('Сгенерировать новый пароль?')">
+      <%- hidden %><span class="muted">Продавец забыл пароль?</span><button class="btn btn-outline btn-sm" type="submit">Сбросить пароль</button>
+    </form>
+  </div>
+  <% if (locals.apps && apps.length) { %>
+    <h2>Заявки продавца</h2>
+    <div class="table-wrap"><table class="table">
+      <thead><tr><th>Договор</th><th>Клиент</th><th class="num">Сумма</th><th>Статус</th><th>Дата</th></tr></thead>
+      <tbody><% for (const r of apps) { %>
+        <tr class="link-row" data-href="/app/<%= r.id %>"><td><a href="/app/<%= r.id %>"><b><%= r.number %></b></a></td><td><%= fio(r) || '—' %></td><td class="num"><%= money(r.total_amount) %></td><td><span class="pill <%= r.status %>"><%= APP_STATUS[r.status] %></span></td><td class="small"><%= date(r.created_at) %></td></tr>
+      <% } %></tbody>
+    </table></div>
+  <% } %>
+<% } %>
+<%- include('../partials/shell_end') %>

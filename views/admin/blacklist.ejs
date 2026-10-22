@@ -1,0 +1,38 @@
+<%- include('../partials/shell_start') %>
+<div class="page-head">
+  <div><h1>Стоп-лист</h1><div class="sub">Клиенты, которым рассрочка не выдаётся. Проверяется автоматически при каждой заявке</div></div>
+</div>
+<form method="post" action="/admin/blacklist" class="card" novalidate>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <h2>Добавить запись</h2>
+  <p class="muted small" style="margin-top:0">Достаточно паспорта, телефона или ФИО с датой рождения.</p>
+  <div class="grid">
+    <%- include('../partials/field', { name: 'last_name', label: 'Фамилия', col: 'col-4' }) %>
+    <%- include('../partials/field', { name: 'first_name', label: 'Имя', col: 'col-4' }) %>
+    <%- include('../partials/field', { name: 'middle_name', label: 'Отчество', col: 'col-4' }) %>
+    <%- include('../partials/field', { name: 'birth_date', label: 'Дата рождения', type: 'date', col: 'col-3' }) %>
+    <%- include('../partials/field', { name: 'passport_series', label: 'Серия паспорта', col: 'col-3', attrs: 'maxlength="4" data-mask="digits"' }) %>
+    <%- include('../partials/field', { name: 'passport_number', label: 'Номер паспорта', col: 'col-3', attrs: 'maxlength="6" data-mask="digits"' }) %>
+    <%- include('../partials/field', { name: 'phone', label: 'Телефон', type: 'tel', col: 'col-3', attrs: 'data-mask="phone"' }) %>
+    <%- include('../partials/field', { name: 'reason', label: 'Причина', req: true }) %>
+  </div>
+  <button class="btn btn-dark" type="submit">Добавить в стоп-лист</button>
+</form>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>ФИО</th><th>Дата рожд.</th><th>Паспорт</th><th>Телефон</th><th>Причина</th><th>Добавлен</th><th></th></tr></thead>
+    <tbody>
+      <% if (!rows.length) { %><tr><td colspan="7" class="empty">Стоп-лист пуст</td></tr><% } %>
+      <% for (const r of rows) { %>
+        <tr>
+          <td><%= fio(r) || '—' %></td><td class="nowrap"><%= date(r.birth_date) || '—' %></td>
+          <td class="nowrap"><%= r.passport_number ? `${r.passport_series || ''} ${r.passport_number}` : '—' %></td>
+          <td class="nowrap"><%= r.phone ? phone(r.phone) : '—' %></td>
+          <td><%= r.reason %></td><td class="small nowrap"><%= date(r.created_at) %></td>
+          <td><form method="post" action="/admin/blacklist/<%= r.id %>/delete" onsubmit="return confirm('Удалить запись?')"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-sm" type="submit">Удалить</button></form></td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/shell_end') %>

@@ -1,0 +1,23 @@
+<%
+  const fname = locals.name;
+  const fval = locals.value != null ? locals.value : (locals.form && locals.form[fname] != null ? locals.form[fname] : '');
+  const ferr = locals.errors && locals.errors[fname];
+  const ftype = locals.type || 'text';
+%>
+<div class="field <%= locals.col || 'col-12' %><%= ferr ? ' has-error' : '' %>">
+  <label for="f_<%= fname %>"><%= locals.label %><% if (locals.req) { %> <span class="req">*</span><% } %></label>
+  <% if (locals.options) { %>
+    <select class="input" id="f_<%= fname %>" name="<%= fname %>" <%= locals.req ? 'required' : '' %>>
+      <option value="">— выберите —</option>
+      <% for (const [k, v] of Object.entries(locals.options)) { %>
+        <option value="<%= k %>" <%= String(fval) === String(k) ? 'selected' : '' %>><%= v %></option>
+      <% } %>
+    </select>
+  <% } else if (ftype === 'textarea') { %>
+    <textarea class="input" id="f_<%= fname %>" name="<%= fname %>" rows="2" <%= locals.req ? 'required' : '' %> <%- locals.attrs || '' %>><%= fval %></textarea>
+  <% } else { %>
+    <input class="input" id="f_<%= fname %>" name="<%= fname %>" type="<%= ftype %>" value="<%= fval %>"
+      <%= locals.req ? 'required' : '' %> <% if (locals.placeholder) { %>placeholder="<%= locals.placeholder %>"<% } %> <%- locals.attrs || '' %>>
+  <% } %>
+  <% if (ferr) { %><div class="error"><%= ferr %></div><% } else if (locals.hint) { %><div class="hint"><%= locals.hint %></div><% } %>
+</div>

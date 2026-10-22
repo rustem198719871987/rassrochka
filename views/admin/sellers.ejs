@@ -1,0 +1,28 @@
+<%- include('../partials/shell_start') %>
+<div class="page-head">
+  <div><h1>Продавцы</h1><div class="sub">Заявки на регистрацию и доступ к оформлению рассрочек</div></div>
+  <a class="btn btn-primary" href="/admin/sellers/new">+ Добавить продавца</a>
+</div>
+<div class="filters">
+  <a href="/admin/sellers" class="<%= !status ? 'active' : '' %>">Все</a>
+  <% for (const [k, v] of Object.entries(USER_STATUS)) { %><a href="/admin/sellers?status=<%= k %>" class="<%= status === k ? 'active' : '' %>"><%= v %></a><% } %>
+</div>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>ФИО</th><th>Телефон</th><th>ИП</th><th class="num">Сделок</th><th>Статус</th><th>Регистрация</th></tr></thead>
+    <tbody>
+      <% if (!rows.length) { %><tr><td colspan="6" class="empty">Продавцов нет</td></tr><% } %>
+      <% for (const s of rows) { %>
+        <tr class="link-row" data-href="/admin/sellers/<%= s.id %>">
+          <td><a href="/admin/sellers/<%= s.id %>"><b><%= fio(s) %></b></a></td>
+          <td class="nowrap"><%= phone(s.phone) %></td>
+          <td class="small"><%= s.ip_names || '—' %></td>
+          <td class="num"><%= s.deals %></td>
+          <td><span class="pill <%= s.status %>"><%= USER_STATUS[s.status] %></span></td>
+          <td class="small nowrap"><%= date(s.created_at) %></td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/shell_end') %>

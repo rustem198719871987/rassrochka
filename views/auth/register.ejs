@@ -1,0 +1,28 @@
+<%- include('../partials/auth_start') %>
+<div class="auth-card wide">
+  <div class="tabs" role="tablist" style="max-width:480px;margin:0 auto">
+    <a href="/login" role="tab" aria-selected="false">Вход</a>
+    <a href="/register" class="active" role="tab" aria-selected="true">Регистрация</a>
+  </div>
+  <h1>Регистрация продавца</h1>
+  <p class="sub">После проверки администратором вы сможете оформлять рассрочки</p>
+  <% if (Object.keys(errors).length) { %><div class="alert alert-error">Проверьте выделенные поля</div><% } %>
+  <form method="post" action="/register" novalidate>
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <%- include('_seller_form') %>
+    <fieldset>
+      <legend>Пароль для входа</legend>
+      <div class="grid">
+        <%- include('../partials/field', { name: 'password', label: 'Пароль', req: true, type: 'password', col: 'col-6', value: '', hint: 'Не менее 8 символов', attrs: 'autocomplete="new-password"' }) %>
+        <%- include('../partials/field', { name: 'password2', label: 'Повторите пароль', req: true, type: 'password', col: 'col-6', value: '', attrs: 'autocomplete="new-password"' }) %>
+      </div>
+    </fieldset>
+    <label class="check">
+      <input type="checkbox" name="agree" value="1" <%= form.agree ? 'checked' : '' %>>
+      <span>Даю согласие на обработку моих персональных данных в соответствии с 152-ФЗ для проверки и допуска к работе продавцом</span>
+    </label>
+    <% if (errors.agree) { %><div class="field has-error"><div class="error"><%= errors.agree %></div></div><% } %>
+    <button class="btn btn-primary btn-lg btn-block" type="submit" style="margin-top:16px">Отправить на проверку</button>
+  </form>
+</div>
+<%- include('../partials/auth_end') %>

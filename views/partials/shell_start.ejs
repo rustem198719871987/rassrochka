@@ -1,0 +1,37 @@
+<%- include('head') %>
+<% const isAdmin = user.role === 'admin';
+   const nav = isAdmin ? [
+     ['/admin', 'Главная', 'home', path === '/admin'],
+     ['/admin/sellers', 'Продавцы', 'users', path.startsWith('/admin/sellers'), pendingSellers],
+     ['/admin/ips', 'ИП и реквизиты', 'bank', path.startsWith('/admin/ips')],
+     ['/app/search', 'Рассрочки', 'list', path === '/app/search' || /^\/app\/\d/.test(path)],
+     null,
+     ['/app/new', 'Создать заявку', 'plus', path === '/app/new'],
+     ['/app/calculator', 'Калькулятор', 'calc', path === '/app/calculator'],
+     null,
+     ['/admin/blacklist', 'Стоп-лист', 'shield', path.startsWith('/admin/blacklist')],
+     ['/admin/settings', 'Настройки', 'gear', path.startsWith('/admin/settings')],
+   ] : [
+     ['/app/new', 'Создать заявку', 'plus', path === '/app/new' || /^\/app\/\d/.test(path)],
+     ['/app/calculator', 'Калькулятор', 'calc', path === '/app/calculator'],
+     ['/app/search', 'Поиск', 'search', path === '/app/search'],
+   ]; %>
+<div class="shell">
+  <aside class="sidebar no-print">
+    <%- include('logo', { inverse: true }) %>
+    <nav class="nav">
+      <% for (const item of nav) { if (!item) { %><div class="nav-sep"></div><% continue; } %>
+        <a href="<%= item[0] %>" class="<%= item[3] ? 'active' : '' %>">
+          <%- include('icon', { icon: item[2] }) %><span><%= item[1] %></span>
+          <% if (item[4]) { %><span class="badge"><%= item[4] %></span><% } %>
+        </a>
+      <% } %>
+    </nav>
+    <div class="me">
+      <div class="name"><%= isAdmin ? 'Администратор' : fioShort(user) %></div>
+      <div class="role"><%= phone(user.phone) %></div>
+      <form method="post" action="/logout"><input type="hidden" name="_csrf" value="<%= csrf %>"><button type="submit">Выйти</button></form>
+    </div>
+  </aside>
+  <main class="main">
+    <%- include('flash') %>

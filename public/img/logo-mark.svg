@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <!-- Знак: чёрный квадрат и жёлтое кольцо из 6 долей — 6 месяцев рассрочки -->
+  <rect width="48" height="48" rx="12" fill="#111"/>
+  <g stroke-width="7" fill="none" transform="rotate(-90 24 24)">
+    <circle cx="24" cy="24" r="14" stroke="#FFD400" stroke-dasharray="12.66 2" />
+  </g>
+  <path d="M18.5 24.5l4 4 7.5-8" stroke="#FFD400" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

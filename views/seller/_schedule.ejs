@@ -1,0 +1,33 @@
+<% const today = new Date().toISOString().slice(0, 10); %>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>№</th><th>Дата платежа</th><th class="num">Сумма</th><th>Статус</th><% if (canToggle) { %><th></th><% } %></tr></thead>
+    <tbody>
+      <% if (a.down_payment) { %>
+        <tr><td>—</td><td>При подписании</td><td class="num"><%= money(a.down_payment) %></td><td><span class="pill">Первый взнос</span></td><% if (canToggle) { %><td></td><% } %></tr>
+      <% } %>
+      <% for (const p of schedule) { %>
+        <tr>
+          <td><%= p.n %></td>
+          <td class="nowrap"><%= date(p.due_date) %></td>
+          <td class="num"><b><%= money(p.amount) %></b></td>
+          <td>
+            <% if (p.paid_at) { %><span class="pill approved">Оплачен <%= date(p.paid_at) %></span>
+            <% } else if (p.id && p.due_date < today) { %><span class="pill declined">Просрочен</span>
+            <% } else if (p.id) { %><span class="pill draft">Ожидается</span>
+            <% } else { %><span class="pill">План</span><% } %>
+          </td>
+          <% if (canToggle) { %>
+            <td class="num">
+              <form method="post" action="/admin/payments/<%= p.id %>/toggle">
+                <input type="hidden" name="_csrf" value="<%= csrf %>">
+                <button class="btn btn-sm <%= p.paid_at ? 'btn-ghost' : 'btn-outline' %>" type="submit"><%= p.paid_at ? 'Отменить оплату' : 'Отметить оплату' %></button>
+              </form>
+            </td>
+          <% } %>
+        </tr>
+      <% } %>
+      <tr><td></td><td><b>Итого</b></td><td class="num"><b><%= money(a.total_amount) %></b></td><td colspan="<%= canToggle ? 2 : 1 %>"></td></tr>
+    </tbody>
+  </table>
+</div>

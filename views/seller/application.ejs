@@ -1,0 +1,334 @@
+<%- include('../partials/shell_start') %>
+<%
+  const isAdmin = user.role === 'admin';
+  const hidden = `<input type="hidden" name="_csrf" value="${csrf}">`;
+  const dc = (purpose) => devCode && devCode.purpose === purpose ? devCode.code : null;
+%>
+<div class="page-head">
+  <div>
+    <h1>Заявка на рассрочку <span class="nowrap"><%= a.number %></span></h1>
+    <div class="sub">
+      <span class="pill <%= a.status %>"><%= APP_STATUS[a.status] %></span>
+      &nbsp;<%= a.product_name %> · <%= money(a.total_amount) %> · <%= a.months %> мес
+      <% if (isAdmin) { %> · продавец <a href="/admin/sellers/<%= seller.id %>"><%= fioShort(seller) %></a><% } %>
+    </div>
+  </div>
+  <% if (editable && step <= 5) { %>
+    <form method="post" action="/app/<%= a.id %>/cancel" onsubmit="return confirm('Отменить заявку?')">
+      <%- hidden %><button class="btn btn-ghost btn-sm" type="submit">Отменить заявку</button>
+    </form>
+  <% } %>
+</div>
+
+<nav class="stepper" aria-label="Этапы оформления">
+  <% steps.forEach((label, i) => { const n = i + 1; const isDone = n < done || step === 6; const cls = step === n ? 'current' : (isDone ? 'done' : ''); %>
+    <% if (i) { %><span class="bar <%= isDone || step === n ? 'done' : '' %>"></span><% } %>
+    <% if (n <= done && step !== 6) { %>
+      <a class="s <%= cls %>" href="/app/<%= a.id %>?step=<%= n %>"><span class="dot"><%= isDone && step !== n ? '✓' : n %></span><span class="lbl"><%= label %></span></a>
+    <% } else { %>
+      <span class="s <%= cls %>"><span class="dot"><%= isDone ? '✓' : n %></span><span class="lbl"><%= label %></span></span>
+    <% } %>
+  <% }) %>
+</nav>
+
+<% if (a.status === 'cancelled') { %>
+  <div class="alert alert-warn">Заявка отменена. Данные доступны только для просмотра.</div>
+<% } %>
+
+<%# ======================= ШАГ 1: ТОВАР ======================= %>
+<% if (step === 1) { %>
+  <%- include('_product', { action: `/app/${a.id}/product`, submitLabel: 'Сохранить условия', canEdit: editable }) %>
+<% } %>
+
+<%# ======================= ШАГ 2: АНКЕТА ======================= %>
+<% if (step === 2) { %>
+  <% if (editable) { %>
+  <div class="card scan-card" data-scan data-app="<%= a.id %>" data-csrf="<%= csrf %>">
+    <div class="scan-intro">
+      <div>
+        <h2 style="margin-bottom:6px">Заполнить по фото паспорта</h2>
+        <p class="muted" style="margin:0">Отсканируйте QR-код своим телефоном, сфотографируйте разворот паспорта, прописку и клиента и нажмите «Отправить». Данные паспорта заполнятся в анкете автоматически.</p>
+      </div>
+      <button type="button" class="btn btn-dark" data-scan-start>Показать QR-код</button>
+    </div>
+    <div class="scan-body" data-scan-body hidden>
+      <img data-scan-qr alt="QR-код для телефона" width="200" height="200">
+      <div>
+        <div class="scan-status" data-scan-status><span class="spinner"></span>Ждём фото с телефона…</div>
+        <ol class="muted small" style="padding-left:18px">
+          <li>Откройте камеру телефона и наведите на QR-код.</li>
+          <li>Сфотографируйте документы и нажмите «Отправить».</li>
+          <li>Проверьте заполненные поля и сохраните анкету.</li>
+        </ol>
+        <p class="small muted" style="margin:0">Ссылка действует 30 минут: <a data-scan-link target="_blank" rel="noopener">открыть на этом устройстве</a></p>
+      </div>
+    </div>
+    <div data-scan-notes></div>
+  </div>
+  <% } %>
+  <% if (docs.length) { %><div class="card soft"><h3>Фото документов</h3><%- include('_docs') %></div><% } %>
+  <form method="post" action="/app/<%= a.id %>/client" novalidate class="card" id="client-form">
+    <%- hidden %>
+    <% if (Object.keys(errors).length) { %><div class="alert alert-error">Проверьте выделенные поля</div><% } %>
+    <% if (a.check_status) { %><div class="alert alert-info">После изменения анкеты проверку по базам нужно будет пройти заново.</div><% } %>
+    <%- include('../partials/person', {
+      extraPersonal:
+        include('../partials/field', { name: 'gender', label: 'Пол', req: true, col: 'col-4', options: { m: 'Мужской', f: 'Женский' } }) +
+        include('../partials/field', { name: 'birth_place', label: 'Место рождения (как в паспорте)', req: true, col: 'col-4' })
+    }) %>
+    <fieldset>
+      <legend>Адрес проживания</legend>
+      <label class="check"><input type="checkbox" name="same_address" value="1" data-toggle-hide="#fact_address_box" <%= form.same_address || (form.fact_address && form.fact_address === form.reg_address) ? 'checked' : '' %>><span>Совпадает с адресом регистрации</span></label>
+      <div class="grid" id="fact_address_box">
+        <%- include('../partials/field', { name: 'fact_address', label: 'Фактический адрес проживания', req: true, type: 'textarea' }) %>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Контакты клиента</legend>
+      <div class="grid">
+        <%- include('../partials/field', { name: 'phone', label: 'Мобильный телефон', req: true, type: 'tel', col: 'col-6', placeholder: '+7 (___) ___-__-__', value: form.phone && /^\d{11}$/.test(form.phone) ? phone(form.phone) : form.phone, hint: 'На него придёт SMS-код для подтверждения', attrs: 'data-mask="phone"' }) %>
+        <%- include('../partials/field', { name: 'email', label: 'E-mail', type: 'email', col: 'col-6' }) %>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Семья</legend>
+      <div class="grid">
+        <%- include('../partials/field', { name: 'marital_status', label: 'Семейное положение', col: 'col-6', options: { single: 'Холост / не замужем', married: 'Женат / замужем', civil: 'Гражданский брак', divorced: 'Разведён(а)', widowed: 'Вдовец / вдова' } }) %>
+        <%- include('../partials/field', { name: 'dependents', label: 'Количество иждивенцев', type: 'number', col: 'col-6', attrs: 'min="0" max="20"' }) %>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Занятость и доход</legend>
+      <div class="grid">
+        <%- include('../partials/field', { name: 'employment_type', label: 'Тип занятости', req: true, col: 'col-6', options: EMPLOYMENT }) %>
+        <%- include('../partials/field', { name: 'monthly_income', label: 'Ежемесячный доход, ₽', req: true, col: 'col-6', attrs: 'inputmode="decimal"' }) %>
+        <%- include('../partials/field', { name: 'work_place', label: 'Место работы (организация)', col: 'col-6' }) %>
+        <%- include('../partials/field', { name: 'work_position', label: 'Должность', col: 'col-6' }) %>
+        <%- include('../partials/field', { name: 'work_address', label: 'Адрес работы', col: 'col-6' }) %>
+        <%- include('../partials/field', { name: 'work_phone', label: 'Рабочий телефон', type: 'tel', col: 'col-3', value: form.work_phone && /^\d{11}$/.test(form.work_phone) ? phone(form.work_phone) : form.work_phone, attrs: 'data-mask="phone"' }) %>
+        <%- include('../partials/field', { name: 'work_experience', label: 'Стаж на последнем месте', col: 'col-3', placeholder: 'например, 2 года' }) %>
+      </div>
+    </fieldset>
+    <fieldset>
+      <legend>Контактное лицо</legend>
+      <div class="grid">
+        <%- include('../partials/field', { name: 'contact_name', label: 'ФИО', req: true, col: 'col-4' }) %>
+        <%- include('../partials/field', { name: 'contact_phone', label: 'Телефон', req: true, type: 'tel', col: 'col-4', value: form.contact_phone && /^\d{11}$/.test(form.contact_phone) ? phone(form.contact_phone) : form.contact_phone, attrs: 'data-mask="phone"' }) %>
+        <%- include('../partials/field', { name: 'contact_relation', label: 'Кем приходится', col: 'col-4', options: { spouse: 'Супруг(а)', parent: 'Родитель', child: 'Сын / дочь', sibling: 'Брат / сестра', relative: 'Другой родственник', friend: 'Друг / знакомый', colleague: 'Коллега' } }) %>
+      </div>
+    </fieldset>
+    <% if (editable) { %><button class="btn btn-dark btn-lg" type="submit">Сохранить и продолжить</button><% } %>
+  </form>
+<% } %>
+
+<%# ======================= ШАГ 3: SMS И СОГЛАСИЕ ======================= %>
+<% if (step === 3) { %>
+  <div class="two-col">
+    <div class="card">
+      <h2>Подтверждение телефона и согласие на обработку персональных данных</h2>
+      <% if (a.pd_consent_signed_at) { %>
+        <div class="alert alert-ok">Телефон <b><%= phone(a.phone) %></b> подтверждён, согласие подписано простой электронной подписью <%= dateTime(a.pd_consent_signed_at) %>.</div>
+        <div class="actions">
+          <a class="btn btn-outline" href="/app/<%= a.id %>/consent" target="_blank">Открыть согласие</a>
+          <a class="btn btn-dark" href="/app/<%= a.id %>?step=4">Далее — проверка по базам</a>
+        </div>
+      <% } else { %>
+        <ol class="muted" style="padding-left:18px;margin-top:0">
+          <li>Дайте клиенту ознакомиться с <a href="/app/<%= a.id %>/consent" target="_blank">согласием на обработку персональных данных</a> (можно распечатать).</li>
+          <li>Отправьте SMS-код на номер клиента <b style="color:var(--ink)"><%= phone(a.phone) %></b>.</li>
+          <li>Клиент называет код — это подтверждает номер и подписывает согласие.</li>
+        </ol>
+        <form method="post" action="/app/<%= a.id %>/sms" style="margin:18px 0">
+          <%- hidden %><input type="hidden" name="purpose" value="consent">
+          <button class="btn btn-outline" type="submit">Отправить SMS-код</button>
+        </form>
+        <% if (dc('consent')) { %>
+          <div class="alert alert-info">Тестовый режим SMS (провайдер не подключён). Код: <span class="dev-code"><%= dc('consent') %></span></div>
+        <% } %>
+        <form method="post" action="/app/<%= a.id %>/consent" class="actions">
+          <%- hidden %>
+          <input class="input code-input" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" aria-label="Код из SMS" required>
+          <button class="btn btn-dark btn-lg" type="submit">Подтвердить</button>
+        </form>
+      <% } %>
+    </div>
+    <div class="card soft">
+      <h3>Клиент</h3>
+      <dl class="kv" style="grid-template-columns:110px 1fr">
+        <dt>ФИО</dt><dd><%= fio(a) %></dd>
+        <dt>Паспорт</dt><dd><%= a.passport_series %> <%= a.passport_number %></dd>
+        <dt>Телефон</dt><dd><%= phone(a.phone) %></dd>
+      </dl>
+      <% if (docs.length) { %><%- include('_docs') %><% } %>
+      <p class="small muted" style="margin-bottom:0"><a href="/app/<%= a.id %>?step=2">Изменить анкету</a></p>
+    </div>
+  </div>
+<% } %>
+
+<%# ======================= ШАГ 4: ПРОВЕРКА ======================= %>
+<% if (step === 4) { %>
+  <div class="card">
+    <h2>Проверка клиента по базам</h2>
+    <% if (checkResult) { %>
+      <% if (a.check_status === 'clean') { %>
+        <div class="alert alert-ok"><b>Проверка пройдена.</b> Негативной информации не найдено — можно оформлять договор.</div>
+      <% } else if (a.check_status === 'override') { %>
+        <div class="alert alert-warn"><b>Одобрено администратором вручную.</b> <%= a.admin_comment %></div>
+      <% } else { %>
+        <div class="alert alert-error"><b>Отказ.</b> По клиенту найдена негативная информация. Оформление рассрочки недоступно.</div>
+      <% } %>
+      <div class="check-items">
+        <% for (const it of checkResult.items) { %>
+          <div class="check-item <%= it.status %>">
+            <span class="ico"><%= it.status === 'ok' ? '✓' : it.status === 'hit' ? '!' : '?' %></span>
+            <div><b><%= it.title %></b><div class="small muted"><%= it.details %></div></div>
+          </div>
+        <% } %>
+      </div>
+      <p class="small muted">Проверено <%= dateTime(checkResult.checkedAt) %></p>
+      <div class="actions">
+        <% if (a.status === 'approved') { %><a class="btn btn-dark btn-lg" href="/app/<%= a.id %>?step=5">Далее — договор</a><% } %>
+        <% if (editable) { %>
+          <form method="post" action="/app/<%= a.id %>/check">
+            <%- hidden %><input type="hidden" name="fssp_manual" value="<%= checkResult.items.some(i => i.manual) ? '1' : '' %>">
+            <button class="btn btn-outline" type="submit">Проверить повторно</button>
+          </form>
+        <% } %>
+      </div>
+      <% if (isAdmin && a.status === 'declined') { %>
+        <form method="post" action="/admin/applications/<%= a.id %>/override" class="card soft" style="margin-top:20px">
+          <%- hidden %>
+          <h3>Решение администратора</h3>
+          <div class="field"><label for="ov">Основание для ручного одобрения</label><input class="input" id="ov" name="comment" required></div>
+          <button class="btn btn-ok" type="submit">Одобрить вручную</button>
+        </form>
+      <% } %>
+    <% } else { %>
+      <p class="muted">Система проверит клиента <b style="color:var(--ink)"><%= fio(a) %></b>, паспорт <%= a.passport_series %> <%= a.passport_number %>:</p>
+      <div class="check-items" style="margin-bottom:18px">
+        <div class="check-item ok"><span class="ico">1</span><div><b>Внутренний стоп-лист</b><div class="small muted">Клиенты, внесённые администратором как недобросовестные</div></div></div>
+        <div class="check-item ok"><span class="ico">2</span><div><b>История рассрочек в системе</b><div class="small muted">Просрочки по ранее оформленным договорам</div></div></div>
+        <div class="check-item <%= fsspConfigured ? 'ok' : 'not_configured' %>"><span class="ico">3</span><div><b>ФССП — исполнительные производства</b><div class="small muted"><%= fsspConfigured ? 'Автоматическая проверка' : 'Автоматическая проверка не подключена — проверьте вручную' %></div></div></div>
+        <div class="check-item not_configured"><span class="ico">4</span><div><b>Банковские стоп-листы / БКИ</b><div class="small muted">Проверяется, если подключён поставщик данных</div></div></div>
+      </div>
+      <form method="post" action="/app/<%= a.id %>/check">
+        <%- hidden %>
+        <% if (!fsspConfigured) { %>
+          <div class="alert alert-warn">
+            Откройте <a href="<%= fsspUrl %>" target="_blank" rel="noopener">банк данных исполнительных производств ФССП</a>,
+            найдите клиента по ФИО, дате рождения и региону. Если долгов нет — отметьте:
+          </div>
+          <label class="check"><input type="checkbox" name="fssp_manual" value="1"><span>Я проверил(а) клиента на сайте ФССП — <b>исполнительных производств нет</b></span></label>
+        <% } %>
+        <button class="btn btn-dark btn-lg" type="submit" style="margin-top:8px">Проверить клиента</button>
+      </form>
+    <% } %>
+    <% if (isAdmin && a.client_filled_at) { %>
+      <form method="post" action="/admin/applications/<%= a.id %>/blacklist" class="actions" style="margin-top:20px" onsubmit="return confirm('Добавить клиента в стоп-лист?')">
+        <%- hidden %>
+        <input class="input" name="reason" placeholder="Причина (необязательно)" style="max-width:320px">
+        <button class="btn btn-danger btn-sm" type="submit">В стоп-лист</button>
+      </form>
+    <% } %>
+  </div>
+<% } %>
+
+<%# ======================= ШАГ 5: ДОГОВОР ======================= %>
+<% if (step === 5) { %>
+  <% if (a.status !== 'approved') { %>
+    <div class="alert alert-error">Договор недоступен: заявка не одобрена.</div>
+  <% } else { %>
+  <div class="two-col">
+    <div>
+      <div class="card">
+        <h2>Условия договора</h2>
+        <dl class="kv">
+          <dt>Продавец</dt><dd><%= ip.full_name %></dd>
+          <dt>Покупатель</dt><dd><%= fio(a) %></dd>
+          <dt>Товар</dt><dd><%= a.product_name %></dd>
+          <dt>Стоимость товара</dt><dd><%= money(a.product_price) %></dd>
+          <dt>Наценка за рассрочку</dt><dd><%= money(a.markup_amount) %> (<%= a.markup_percent * a.months %>%)</dd>
+          <dt>Цена в рассрочку</dt><dd><%= money(a.total_amount) %></dd>
+          <% if (a.down_payment) { %><dt>Первый взнос</dt><dd><%= money(a.down_payment) %></dd><% } %>
+          <dt>Срок</dt><dd><%= a.months %> мес.</dd>
+        </dl>
+      </div>
+      <div class="card">
+        <h2>График платежей</h2>
+        <%- include('_schedule', { canToggle: false }) %>
+      </div>
+      <div class="card">
+        <h2>Подписание договора</h2>
+        <p class="muted" style="margin-top:0">Распечатайте или покажите клиенту <a href="/app/<%= a.id %>/contract" target="_blank">договор рассрочки</a>. Затем отправьте код — клиент подписывает договор, называя код из SMS.</p>
+        <form method="post" action="/app/<%= a.id %>/sms" style="margin-bottom:16px">
+          <%- hidden %><input type="hidden" name="purpose" value="contract">
+          <button class="btn btn-outline" type="submit">Отправить SMS-код на <%= phone(a.phone) %></button>
+        </form>
+        <% if (dc('contract')) { %>
+          <div class="alert alert-info">Тестовый режим SMS. Код: <span class="dev-code"><%= dc('contract') %></span></div>
+        <% } %>
+        <form method="post" action="/app/<%= a.id %>/sign">
+          <%- hidden %>
+          <label class="check"><input type="checkbox" name="client_read" value="1"><span>Клиент ознакомлен с договором, графиком платежей и реквизитами для оплаты</span></label>
+          <div class="actions">
+            <input class="input code-input" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" placeholder="••••••" aria-label="Код из SMS" required>
+            <button class="btn btn-primary btn-lg" type="submit">Подписать договор</button>
+          </div>
+        </form>
+      </div>
+    </div>
+    <div class="sticky">
+      <div class="card yellow summary">
+        <div class="small" style="font-weight:700">Ежемесячный платёж</div>
+        <div class="big"><%= money(a.monthly_payment) %></div>
+        <hr>
+        <div class="row"><span>Итого</span><b><%= money(a.total_amount) %></b></div>
+        <div class="row"><span>Срок</span><b><%= a.months %> мес</b></div>
+      </div>
+      <a class="btn btn-outline btn-block" href="/app/<%= a.id %>/contract" target="_blank">Открыть договор</a>
+    </div>
+  </div>
+  <% } %>
+<% } %>
+
+<%# ======================= ГОТОВО ======================= %>
+<% if (step === 6) { %>
+  <div class="success">
+    <div>
+      <div class="bubble">
+        <div class="t"><%= a.status === 'closed' ? 'Рассрочка полностью погашена' : 'Поздравляем! Рассрочка оформлена.' %></div>
+        <div>Договор подписан по SMS <%= dateTime(a.contract_signed_at) %>.</div>
+        <% if (a.status === 'signed') { %><div>Не забудьте выдать товар клиенту.</div><% } %>
+      </div>
+      <h3 style="margin-top:28px">Документы</h3>
+      <ul class="docs-list">
+        <li><a href="/app/<%= a.id %>/contract" target="_blank"><%- include('../partials/icon', { icon: 'doc' }) %>Договор купли-продажи в рассрочку</a></li>
+        <li><a href="/app/<%= a.id %>/contract#schedule" target="_blank"><%- include('../partials/icon', { icon: 'doc' }) %>График платежей и реквизиты</a></li>
+        <li><a href="/app/<%= a.id %>/consent" target="_blank"><%- include('../partials/icon', { icon: 'doc' }) %>Согласие на обработку персональных данных</a></li>
+      </ul>
+      <div class="actions" style="margin:22px 0 28px">
+        <a class="btn btn-dark btn-lg" href="/app/<%= a.id %>/contract?print=1" target="_blank"><%- include('../partials/icon', { icon: 'print' }) %>Распечатать договор</a>
+        <a class="btn btn-outline" href="/app/new">Новая заявка</a>
+      </div>
+      <div class="card">
+        <h2>График платежей</h2>
+        <%- include('_schedule', { canToggle: isAdmin }) %>
+      </div>
+    </div>
+    <div>
+      <% if (qr) { %>
+        <div class="card qr-box">
+          <h3>Быстрая оплата по QR</h3>
+          <img src="<%= qr %>" alt="QR-код для оплаты">
+          <p class="small muted">Отсканируйте в приложении любого банка → «Оплата по QR». Сумма ближайшего платежа подставится автоматически.</p>
+        </div>
+      <% } %>
+      <% if (docs.length) { %><div class="card soft"><h3>Фото документов</h3><%- include('_docs') %></div><% } %>
+      <div class="card soft">
+        <h3>Реквизиты для оплаты</h3>
+        <%- include('_requisites') %>
+      </div>
+    </div>
+  </div>
+<% } %>
+<%- include('../partials/shell_end') %>

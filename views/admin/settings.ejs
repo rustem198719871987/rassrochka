@@ -1,0 +1,61 @@
+<%- include('../partials/shell_start') %>
+<div class="page-head"><div><h1>Настройки</h1><div class="sub">Условия рассрочки и подключённые сервисы</div></div></div>
+<div class="two-col" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+  <form method="post" action="/admin/settings" class="card">
+    <input type="hidden" name="_csrf" value="<%= csrf %>">
+    <h2>Условия рассрочки</h2>
+    <div class="grid">
+      <div class="field col-4"><label for="mp">Наценка за месяц, %</label><input class="input" id="mp" name="markup_percent" value="<%= settings.markupPercent %>" inputmode="decimal"></div>
+      <div class="field col-4"><label for="mn">Мин. срок, мес</label><input class="input" id="mn" name="min_months" type="number" min="1" value="<%= settings.minMonths %>"></div>
+      <div class="field col-4"><label for="mx">Макс. срок, мес</label><input class="input" id="mx" name="max_months" type="number" min="1" max="36" value="<%= settings.maxMonths %>"></div>
+      <div class="field col-12"><label for="sp">Телефон поддержки (показывается на странице входа)</label><input class="input" id="sp" name="support_phone" value="<%= settings.supportPhone %>"></div>
+    </div>
+    <p class="small muted">Пример: при наценке <%= settings.markupPercent %>% и сроке 3 мес. клиент платит +<%= settings.markupPercent * 3 %>% к стоимости. Изменения применяются к новым заявкам.</p>
+    <button class="btn btn-dark" type="submit">Сохранить</button>
+  </form>
+  <div>
+    <div class="card">
+      <h2>Подключённые сервисы</h2>
+      <div class="check-items">
+        <div class="check-item <%= smsDev ? 'not_configured' : 'ok' %>"><span class="ico"><%= smsDev ? '?' : '✓' %></span><div><b>SMS (SMS.ru)</b><div class="small muted"><%= smsDev ? 'Тестовый режим: код показывается продавцу на экране. Укажите API-ключ ниже' : 'Подключено — коды и уведомления уходят клиентам' %></div></div></div>
+        <div class="check-item ok"><span class="ico">✓</span><div><b>Распознавание паспорта</b><div class="small muted"><%= ocrYandex ? 'Yandex Vision: все поля разворота и адрес прописки' : 'Встроенное: ФИО, дата рождения, серия, номер, дата выдачи, код подразделения. Для «кем выдан», места рождения и прописки подключите Yandex Vision' %></div></div></div>
+        <div class="check-item <%= locals.fsspOn ? 'ok' : 'not_configured' %>"><span class="ico"><%= locals.fsspOn ? '✓' : '?' %></span><div><b>Проверка ФССП</b><div class="small muted"><%= locals.fsspOn ? 'Подключено' : 'Ручная проверка продавцом. Для автоматической укажите FSSP_API_URL в .env' %></div></div></div>
+        <div class="check-item <%= locals.bkiOn ? 'ok' : 'not_configured' %>"><span class="ico"><%= locals.bkiOn ? '✓' : '?' %></span><div><b>Банковские стоп-листы / БКИ</b><div class="small muted"><%= locals.bkiOn ? 'Подключено' : 'Не подключено. Укажите BKI_API_URL в .env' %></div></div></div>
+      </div>
+    </div>
+    <form method="post" action="/admin/settings/integrations" class="card" autocomplete="off">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <h2>SMS.ru</h2>
+      <p class="small muted" style="margin-top:0">Ключ — в личном кабинете sms.ru: «Программистам» → API-ключ (api_id). Пустое поле — оставить текущее значение, «-» — удалить.</p>
+      <div class="grid">
+        <div class="field col-8"><label for="k1">API-ключ (api_id)</label><input class="input" id="k1" name="sms_ru_api_id" placeholder="<%= keys.sms_ru_api_id || 'не указан' %>" <%= fromEnv.sms_ru_api_id ? 'disabled' : '' %>><% if (fromEnv.sms_ru_api_id) { %><div class="hint">Задан в .env</div><% } %></div>
+        <div class="field col-4"><label for="k2">Имя отправителя</label><input class="input" id="k2" name="sms_from" placeholder="<%= keys.sms_from || 'по умолчанию' %>" <%= fromEnv.sms_from ? 'disabled' : '' %>><div class="hint">Согласуйте в SMS.ru</div></div>
+      </div>
+      <h2 style="margin-top:8px">Yandex Vision OCR</h2>
+      <p class="small muted" style="margin-top:0">Yandex Cloud → сервисный аккаунт с ролью <b>ai.vision.user</b> → API-ключ. Каталог — ID каталога (folder id).</p>
+      <div class="grid">
+        <div class="field col-6"><label for="k3">API-ключ</label><input class="input" id="k3" name="yandex_api_key" placeholder="<%= keys.yandex_api_key || 'не указан' %>" <%= fromEnv.yandex_api_key ? 'disabled' : '' %>></div>
+        <div class="field col-6"><label for="k4">ID каталога</label><input class="input" id="k4" name="yandex_folder_id" placeholder="<%= keys.yandex_folder_id || 'не указан' %>" <%= fromEnv.yandex_folder_id ? 'disabled' : '' %>></div>
+      </div>
+      <button class="btn btn-dark" type="submit">Сохранить ключи</button>
+    </form>
+    <form method="post" action="/admin/settings/sms-test" class="card">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <h2>Проверить SMS.ru</h2>
+      <p class="small muted" style="margin-top:0">Покажет баланс. Если указать номер — отправит тестовое SMS.</p>
+      <div class="actions">
+        <input class="input" name="phone" type="tel" placeholder="+7 (___) ___-__-__" data-mask="phone" style="max-width:240px">
+        <button class="btn btn-outline" type="submit">Проверить</button>
+      </div>
+    </form>
+    <form method="post" action="/admin/settings/password" class="card">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <h2>Пароль администратора</h2>
+      <div class="field"><label for="cp">Текущий пароль</label><input class="input" id="cp" type="password" name="current" autocomplete="current-password"></div>
+      <div class="field"><label for="np">Новый пароль</label><input class="input" id="np" type="password" name="password" autocomplete="new-password"></div>
+      <div class="field"><label for="np2">Повторите</label><input class="input" id="np2" type="password" name="password2" autocomplete="new-password"></div>
+      <button class="btn btn-outline" type="submit">Сменить пароль</button>
+    </form>
+  </div>
+</div>
+<%- include('../partials/shell_end') %>

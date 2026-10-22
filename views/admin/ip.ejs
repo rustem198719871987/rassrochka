@@ -1,0 +1,45 @@
+<%- include('../partials/shell_start') %>
+<div class="page-head">
+  <div><h1><%= ip ? ip.name : 'Новый ИП' %></h1><div class="sub">Эти данные увидит клиент в договоре и в реквизитах для оплаты</div></div>
+  <a class="btn btn-ghost" href="/admin/ips">← Все ИП</a>
+</div>
+<form method="post" action="<%= ip ? `/admin/ips/${ip.id}` : '/admin/ips/new' %>" class="card" novalidate>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <% if (Object.keys(errors).length) { %><div class="alert alert-error">Проверьте выделенные поля</div><% } %>
+  <fieldset>
+    <legend>Индивидуальный предприниматель</legend>
+    <div class="grid">
+      <%- include('../partials/field', { name: 'name', label: 'Краткое наименование', req: true, col: 'col-4', placeholder: 'ИП Иванов И. И.' }) %>
+      <%- include('../partials/field', { name: 'full_name', label: 'Полное наименование', req: true, col: 'col-8', placeholder: 'Индивидуальный предприниматель Иванов Иван Иванович' }) %>
+      <%- include('../partials/field', { name: 'inn', label: 'ИНН', req: true, col: 'col-4', attrs: 'inputmode="numeric" maxlength="12" data-mask="digits"' }) %>
+      <%- include('../partials/field', { name: 'ogrnip', label: 'ОГРНИП', req: true, col: 'col-4', attrs: 'inputmode="numeric" maxlength="15" data-mask="digits"' }) %>
+      <%- include('../partials/field', { name: 'phone', label: 'Телефон', type: 'tel', col: 'col-4', value: form.phone && /^\d{11}$/.test(form.phone) ? phone(form.phone) : form.phone, attrs: 'data-mask="phone"' }) %>
+      <%- include('../partials/field', { name: 'address', label: 'Адрес', req: true, col: 'col-8' }) %>
+      <%- include('../partials/field', { name: 'email', label: 'E-mail', type: 'email', col: 'col-4' }) %>
+    </div>
+  </fieldset>
+  <fieldset>
+    <legend>Банковские реквизиты</legend>
+    <div class="grid">
+      <%- include('../partials/field', { name: 'bank_name', label: 'Банк', req: true, col: 'col-8', placeholder: 'ПАО Сбербанк' }) %>
+      <%- include('../partials/field', { name: 'bik', label: 'БИК', req: true, col: 'col-4', attrs: 'inputmode="numeric" maxlength="9" data-mask="digits"' }) %>
+      <%- include('../partials/field', { name: 'account', label: 'Расчётный счёт', req: true, col: 'col-6', attrs: 'inputmode="numeric" maxlength="20" data-mask="digits"' }) %>
+      <%- include('../partials/field', { name: 'corr_account', label: 'Корреспондентский счёт', req: true, col: 'col-6', attrs: 'inputmode="numeric" maxlength="20" data-mask="digits"' }) %>
+    </div>
+  </fieldset>
+  <button class="btn btn-dark btn-lg" type="submit"><%= ip ? 'Сохранить' : 'Добавить ИП' %></button>
+</form>
+<% if (ip) { %>
+  <div class="card soft">
+    <h3>Продавцы с доступом к этому ИП</h3>
+    <% if (locals.sellers && sellers.length) { %>
+      <p style="margin-top:0"><% sellers.forEach((s, i) => { %><%= i ? ', ' : '' %><a href="/admin/sellers/<%= s.id %>"><%= fio(s) %></a><% }) %></p>
+    <% } else { %><p class="muted" style="margin-top:0">Нет. Прикрепить ИП можно в карточке продавца.</p><% } %>
+    <form method="post" action="/admin/ips/<%= ip.id %>/toggle">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button class="btn btn-sm <%= ip.active ? 'btn-danger' : 'btn-ok' %>" type="submit"><%= ip.active ? 'Отключить ИП' : 'Включить ИП' %></button>
+      <span class="muted small">&nbsp;Отключённый ИП нельзя выбрать в новых заявках.</span>
+    </form>
+  </div>
+<% } %>
+<%- include('../partials/shell_end') %>

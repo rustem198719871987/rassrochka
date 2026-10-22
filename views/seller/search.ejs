@@ -1,0 +1,44 @@
+<%- include('../partials/shell_start') %>
+<div class="page-head">
+  <div>
+    <h1><%= user.role === 'admin' ? 'Все рассрочки' : 'Поиск по заявкам' %></h1>
+    <div class="sub">По фамилии, имени, отчеству, номеру договора, телефону или паспорту</div>
+  </div>
+  <a class="btn btn-primary" href="/app/new">+ Создать заявку</a>
+</div>
+<form class="search-bar" method="get" action="/app/search">
+  <input class="input" name="q" value="<%= q %>" placeholder="Иванов Иван или РТ-26-000012" autofocus>
+  <% if (status) { %><input type="hidden" name="status" value="<%= status %>"><% } %>
+  <button class="btn btn-dark" type="submit">Найти</button>
+</form>
+<div class="filters">
+  <a href="/app/search?q=<%= encodeURIComponent(q) %>" class="<%= !status ? 'active' : '' %>">Все</a>
+  <% for (const [k, v] of Object.entries(APP_STATUS)) { %>
+    <a href="/app/search?status=<%= k %>&q=<%= encodeURIComponent(q) %>" class="<%= status === k ? 'active' : '' %>"><%= v %></a>
+  <% } %>
+</div>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr>
+      <th>Договор</th><th>Клиент</th><th>Товар</th><th class="num">Сумма</th><th class="num">Платёж</th><th>Срок</th><th>Статус</th><th>Дата</th>
+      <% if (user.role === 'admin') { %><th>Продавец / ИП</th><% } %>
+    </tr></thead>
+    <tbody>
+      <% if (!rows.length) { %><tr><td colspan="9" class="empty">Ничего не найдено</td></tr><% } %>
+      <% for (const r of rows) { %>
+        <tr class="link-row" data-href="/app/<%= r.id %>">
+          <td class="nowrap"><a href="/app/<%= r.id %>"><b><%= r.number %></b></a></td>
+          <td><%= fio(r) || '—' %><% if (r.phone) { %><div class="muted small nowrap"><%= phone(r.phone) %></div><% } %></td>
+          <td><%= r.product_name %></td>
+          <td class="num"><%= money(r.total_amount) %></td>
+          <td class="num"><%= money(r.monthly_payment) %></td>
+          <td class="nowrap"><%= r.months %> мес</td>
+          <td><span class="pill <%= r.status %>"><%= APP_STATUS[r.status] %></span></td>
+          <td class="nowrap small"><%= date(r.contract_signed_at || r.created_at) %></td>
+          <% if (user.role === 'admin') { %><td class="small"><%= fioShort({ last_name: r.s_last, first_name: r.s_first, middle_name: r.s_middle }) %><div class="muted"><%= r.ip_name %></div></td><% } %>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/shell_end') %>

@@ -1,0 +1,198 @@
+(function () {
+  // ---------- маски ввода ----------
+  function maskPhone(v) {
+    var d = v.replace(/\D/g, '');
+    if (d[0] === '8') d = '7' + d.slice(1);
+    if (d && d[0] !== '7') d = '7' + d;
+    d = d.slice(0, 11);
+    if (!d) return '';
+    var out = '+7';
+    if (d.length > 1) out += ' (' + d.slice(1, 4);
+    if (d.length >= 4) out += ')';
+    if (d.length > 4) out += ' ' + d.slice(4, 7);
+    if (d.length > 7) out += '-' + d.slice(7, 9);
+    if (d.length > 9) out += '-' + d.slice(9, 11);
+    return out;
+  }
+  var masks = {
+    phone: maskPhone,
+    digits: function (v) { return v.replace(/\D/g, ''); },
+    dept: function (v) {
+      var d = v.replace(/\D/g, '').slice(0, 6);
+      return d.length > 3 ? d.slice(0, 3) + '-' + d.slice(3) : d;
+    },
+  };
+  document.querySelectorAll('[data-mask]').forEach(function (el) {
+    var fn = masks[el.dataset.mask];
+    if (!fn) return;
+    if (el.value) el.value = fn(el.value);
+    el.addEventListener('input', function () { el.value = fn(el.value); });
+  });
+
+  // ---------- кликабельные строки таблиц ----------
+  document.querySelectorAll('tr[data-href]').forEach(function (tr) {
+    tr.addEventListener('click', function (e) {
+      if (e.target.closest('a, button, form')) return;
+      location.href = tr.dataset.href;
+    });
+  });
+
+  // ---------- «совпадает с адресом регистрации» ----------
+  document.querySelectorAll('[data-toggle-hide]').forEach(function (cb) {
+    var target = document.querySelector(cb.dataset.toggleHide);
+    function sync() { if (target) target.style.display = cb.checked ? 'none' : ''; }
+    cb.addEventListener('change', sync);
+    sync();
+  });
+
+  // ---------- заполнение анкеты по фото паспорта (QR → телефон) ----------
+  var scan = document.querySelector('[data-scan]');
+  if (scan) {
+    var appId = scan.dataset.app;
+    var body = scan.querySelector('[data-scan-body]');
+    var statusEl = scan.querySelector('[data-scan-status]');
+    var notesEl = scan.querySelector('[data-scan-notes]');
+    var timer = null;
+    var setStatus = function (html) { statusEl.innerHTML = html; };
+    var esc = function (t) { var d = document.createElement('div'); d.textContent = t; return d.innerHTML; };
+
+    function fill(result) {
+      var form = document.getElementById('client-form');
+      var uncertain = result.uncertain || [];
+      var count = 0;
+      Object.keys(result.fields || {}).forEach(function (name) {
+        var el = form.querySelector('[name="' + name + '"]');
+        if (!el) return;
+        el.value = result.fields[name];
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        var f = el.closest('.field');
+        if (f) { f.classList.remove('has-error'); f.classList.add(uncertain.indexOf(name) >= 0 ? 'uncertain' : 'autofilled'); }
+        count++;
+      });
+      return count;
+    }
+
+    function showDocs(docs) {
+      if (!docs || !docs.length) return;
+      var labels = { passport_main: 'Паспорт — разворот с фото', passport_reg: 'Паспорт — прописка', client_photo: 'Фото клиента' };
+      var html = docs.map(function (d) {
+        return '<a class="doc-thumb" target="_blank" href="' + d.url + '"><img src="' + d.url + '?t=' + Date.now() + '" alt=""><span>' + labels[d.kind] + '</span></a>';
+      }).join('');
+      notesEl.insertAdjacentHTML('beforeend', '<div class="doc-thumbs" style="margin-top:14px">' + html + '</div>');
+    }
+
+    function poll(sid) {
+      fetch('/app/' + appId + '/scan/' + sid, { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (d.status === 'waiting') return;
+          if (d.status === 'processing') return setStatus('<span class="spinner"></span>Фото получены, распознаём паспорт…');
+          clearInterval(timer);
+          body.hidden = true;
+          if (d.status === 'expired') {
+            notesEl.innerHTML = '<div class="alert alert-warn" style="margin:16px 0 0">Время ожидания истекло. Нажмите «Показать QR-код» ещё раз.</div>';
+            return;
+          }
+          if (d.status === 'error') {
+            notesEl.innerHTML = '<div class="alert alert-error" style="margin:16px 0 0">' + esc(d.error || 'Ошибка распознавания') + '</div>';
+            showDocs(d.docs);
+            return;
+          }
+          var n = fill(d.result || {});
+          var notes = (d.result && d.result.notes) || [];
+          notesEl.innerHTML = '<div class="alert ' + (n ? 'alert-ok' : 'alert-warn') + '" style="margin:16px 0 0"><b>' +
+            (n ? 'Заполнено полей: ' + n + '.' : 'Данные распознать не удалось.') + '</b> ' +
+            (n ? 'Заполненные поля выделены жёлтым, сомнительные — оранжевым. Сверьте с паспортом и сохраните анкету.' : 'Заполните анкету вручную по фото.') +
+            (notes.length ? '<ul style="margin:6px 0 0;padding-left:18px">' + notes.map(function (t) { return '<li>' + esc(t) + '</li>'; }).join('') + '</ul>' : '') +
+            '</div>';
+          showDocs(d.docs);
+        })
+        .catch(function () {});
+    }
+
+    scan.querySelector('[data-scan-start]').addEventListener('click', function () {
+      var btn = this;
+      btn.disabled = true;
+      fetch('/app/' + appId + '/scan', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: '_csrf=' + encodeURIComponent(scan.dataset.csrf),
+      })
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          btn.disabled = false;
+          btn.textContent = 'Новый QR-код';
+          if (d.error) { notesEl.innerHTML = '<div class="alert alert-error" style="margin:16px 0 0">' + esc(d.error) + '</div>'; return; }
+          notesEl.innerHTML = '';
+          scan.querySelector('[data-scan-qr]').src = d.qr;
+          scan.querySelector('[data-scan-link]').href = d.url;
+          setStatus('<span class="spinner"></span>Ждём фото с телефона…');
+          body.hidden = false;
+          clearInterval(timer);
+          timer = setInterval(function () { poll(d.id); }, 2000);
+        })
+        .catch(function () { btn.disabled = false; });
+    });
+  }
+
+  // ---------- живой расчёт рассрочки ----------
+  var form = document.querySelector('[data-calc-form]');
+  if (!form || !window.Calc) return;
+  var rub = function (v) { return Math.round(Number(String(v || '').replace(/\s/g, '').replace(',', '.')) * 100) || 0; };
+  var out = function (name, text) {
+    form.querySelectorAll('[data-calc-out="' + name + '"]').forEach(function (el) { el.textContent = text; });
+  };
+  var money = Calc.money;
+  var fmtDate = function (d) { return d.toLocaleDateString('ru-RU'); };
+
+  function update() {
+    var price = rub((form.querySelector('[data-calc="price"]') || {}).value);
+    var down = rub((form.querySelector('[data-calc="down"]') || {}).value);
+    var checked = form.querySelector('[data-calc="months"]:checked');
+    var months = checked ? Number(checked.value) : 0;
+    var markup = Number(window.MARKUP);
+
+    var table = form.querySelector('[data-calc-table]');
+    if (table) {
+      if (price > 0) {
+        var rows = '';
+        for (var m = Number(table.dataset.min); m <= Number(table.dataset.max); m++) {
+          var r = Calc.calculate({ price: price, downPayment: Math.min(down, price), months: m, markupPercent: markup });
+          rows += '<tr' + (m === months ? ' style="background:#fff6c2;font-weight:700"' : '') + '><td>' + m + ' мес</td><td class="num">' +
+            r.markupTotalPercent + '% · ' + money(r.markup) + '</td><td class="num">' + money(r.total) + '</td><td class="num"><b>' + money(r.monthly) + '</b></td></tr>';
+        }
+        table.innerHTML = rows;
+      } else {
+        table.innerHTML = '<tr><td colspan="4" class="empty">Введите стоимость товара</td></tr>';
+      }
+    }
+
+    out('months-label', months ? months + ' мес' : '');
+    if (!(price > 0) || !months || down >= price) {
+      ['monthly', 'price', 'markup', 'total', 'down', 'financed', 'pct'].forEach(function (k) { out(k, k === 'pct' ? '' : '—'); });
+      var s0 = form.querySelector('[data-calc-schedule]');
+      if (s0) s0.textContent = '—';
+      return;
+    }
+    var c = Calc.calculate({ price: price, downPayment: down, months: months, markupPercent: markup });
+    out('monthly', money(c.monthly));
+    out('price', money(c.price));
+    out('markup', money(c.markup));
+    out('pct', '(' + c.markupTotalPercent + '%)');
+    out('total', money(c.total));
+    out('down', money(c.downPayment));
+    out('financed', money(c.financed));
+
+    var sch = form.querySelector('[data-calc-schedule]');
+    if (sch) {
+      sch.innerHTML = Calc.schedule(c, new Date()).map(function (p) {
+        return '<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #eee;color:#1d1d1f"><span>' +
+          p.n + '. ' + fmtDate(p.date) + '</span><b>' + money(p.amount) + '</b></div>';
+      }).join('');
+    }
+  }
+  form.addEventListener('input', update);
+  form.addEventListener('change', update);
+  update();
+})();

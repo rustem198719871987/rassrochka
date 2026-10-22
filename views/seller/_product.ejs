@@ -1,0 +1,60 @@
+<%# Шаг 1: товар, срок, ИП. Используется на «Создать заявку» и в карточке заявки %>
+<form method="post" action="<%= locals.action %>" novalidate data-calc-form>
+  <input type="hidden" name="_csrf" value="<%= csrf %>">
+  <div class="two-col">
+    <div>
+      <div class="card">
+        <fieldset>
+          <legend>Товар</legend>
+          <div class="grid">
+            <%- include('../partials/field', { name: 'product_name', label: 'Наименование товара', req: true, placeholder: 'Например: iPhone 16 128 ГБ, чёрный' }) %>
+            <%- include('../partials/field', { name: 'product_price', label: 'Стоимость, ₽', req: true, col: 'col-6', placeholder: '45 000', attrs: 'inputmode="decimal" data-calc="price"' }) %>
+            <%- include('../partials/field', { name: 'down_payment', label: 'Первый взнос, ₽', col: 'col-6', placeholder: '0', hint: 'Необязательно', attrs: 'inputmode="decimal" data-calc="down"' }) %>
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>Срок рассрочки <span class="muted small" style="font-weight:600" data-calc-out="months-label"></span></legend>
+          <div class="terms">
+            <% for (let m = settings.minMonths; m <= settings.maxMonths; m++) { %>
+              <label><input type="radio" name="months" value="<%= m %>" <%= Number(form.months) === m ? 'checked' : '' %> data-calc="months"><span><%= m %> мес</span></label>
+            <% } %>
+          </div>
+          <% if (errors.months) { %><div class="field has-error"><div class="error"><%= errors.months %></div></div><% } %>
+          <p class="muted small" style="margin:12px 0 0">Наценка за рассрочку — <%= settings.markupPercent %>% от стоимости товара за каждый месяц.</p>
+        </fieldset>
+        <fieldset style="margin:0">
+          <legend>Продавец по договору (ИП)</legend>
+          <% if (!ips.length) { %>
+            <div class="alert alert-warn" style="margin:0">К вашему аккаунту не прикреплён ни один ИП. Обратитесь к администратору.</div>
+          <% } else { %>
+            <div class="check-list">
+              <% for (const ip of ips) { %>
+                <label class="check card">
+                  <input type="radio" name="entrepreneur_id" value="<%= ip.id %>" <%= Number(form.entrepreneur_id) === ip.id || ips.length === 1 ? 'checked' : '' %>>
+                  <span><b><%= ip.name %></b> <span class="muted small">ИНН <%= ip.inn %></span></span>
+                </label>
+              <% } %>
+            </div>
+            <% if (errors.entrepreneur_id) { %><div class="field has-error"><div class="error"><%= errors.entrepreneur_id %></div></div><% } %>
+          <% } %>
+        </fieldset>
+      </div>
+    </div>
+    <div class="sticky">
+      <div class="card yellow summary">
+        <div class="small" style="font-weight:700">Ежемесячный платёж</div>
+        <div class="big" data-calc-out="monthly">—</div>
+        <hr>
+        <div class="row"><span>Стоимость товара</span><b data-calc-out="price">—</b></div>
+        <div class="row"><span>Наценка <span data-calc-out="pct"></span></span><b data-calc-out="markup">—</b></div>
+        <div class="row"><span>Итого по договору</span><b data-calc-out="total">—</b></div>
+        <div class="row"><span>Первый взнос</span><b data-calc-out="down">—</b></div>
+        <div class="row"><span>В рассрочку</span><b data-calc-out="financed">—</b></div>
+      </div>
+      <% if (ips.length && (locals.canEdit !== false)) { %>
+        <button class="btn btn-dark btn-lg btn-block" type="submit"><%= locals.submitLabel || 'Далее — анкета клиента' %></button>
+      <% } %>
+    </div>
+  </div>
+</form>
+<script>window.MARKUP = <%- JSON.stringify(settings.markupPercent) %>;</script>
