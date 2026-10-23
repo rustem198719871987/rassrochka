@@ -28,7 +28,7 @@
       <div class="muted">Просрочка платежа</div>
       <div class="days"><%= debt.maxDays %> дн.</div>
       <div class="sum">К оплате <%= money(debt.overdue) %></div>
-      <p class="small muted">По договору начисляется неустойка <%= String(a.penalty_percent).replace('.', ',') %>% в день. Оплатите как можно скорее.</p>
+      <p class="small muted">Оплатите как можно скорее или свяжитесь с магазином.</p>
     </div>
   <% } else if (next) { %>
     <div class="p-card due">

@@ -307,7 +307,7 @@
 
       <% if (debt.rows.length) { %>
         <div class="alert alert-error" style="margin-top:20px">
-          <b>Просрочка <%= debt.maxDays %> дн.</b> Долг <%= money(debt.overdue) %>, неустойка на сегодня <%= money(debt.penalty) %>.
+          <b>Просрочка <%= debt.maxDays %> дн.</b> Долг <%= money(debt.overdue) %>.
           <% if (openClaim) { %><a href="/app/claims/<%= openClaim.id %>" target="_blank">Претензия <%= openClaim.number %></a> — <%= CLAIM_STATUS[openClaim.status].toLowerCase() %>.<% } else { %>Претензия сформируется автоматически на <%= settings.claimAfterDays %>-й день просрочки.<% } %>
         </div>
       <% } %>

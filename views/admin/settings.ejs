@@ -12,9 +12,8 @@
     </div>
     <h2 style="margin-top:8px">Платежи и просрочка</h2>
     <div class="grid">
-      <div class="field col-4"><label for="rd">SMS-напоминание за, дней</label><input class="input" id="rd" name="reminder_days" type="number" min="1" max="15" value="<%= settings.reminderDays %>"></div>
-      <div class="field col-4"><label for="cd">Претензия при просрочке от, дней</label><input class="input" id="cd" name="claim_after_days" type="number" min="1" max="60" value="<%= settings.claimAfterDays %>"></div>
-      <div class="field col-4"><label for="pp">Неустойка, % в день</label><input class="input" id="pp" name="penalty_percent" inputmode="decimal" value="<%= settings.penaltyPercent %>"><div class="hint">Для новых договоров</div></div>
+      <div class="field col-6"><label for="rd">SMS-напоминание за, дней</label><input class="input" id="rd" name="reminder_days" type="number" min="1" max="15" value="<%= settings.reminderDays %>"></div>
+      <div class="field col-6"><label for="cd">Претензия при просрочке от, дней</label><input class="input" id="cd" name="claim_after_days" type="number" min="1" max="60" value="<%= settings.claimAfterDays %>"></div>
       <div class="field col-12"><label for="pu">Адрес сайта для ссылок в SMS и QR-кодах</label><input class="input" id="pu" name="public_url" placeholder="https://rassrochka.top" value="<%= locals.publicUrl || '' %>"><div class="hint">Без него в SMS-напоминании будут реквизиты вместо ссылки на страницу оплаты</div></div>
     </div>
     <p class="small muted">Пример: при наценке <%= settings.markupPercent %>% и сроке 3 мес. клиент платит +<%= settings.markupPercent * 3 %>% к стоимости. Изменения применяются к новым заявкам.</p>

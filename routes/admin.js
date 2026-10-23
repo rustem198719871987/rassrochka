@@ -434,10 +434,8 @@ router.post('/settings', (req, res) => {
   setSetting('support_phone', u.str(req.body.support_phone, 50));
   const reminder = Number(req.body.reminder_days);
   const claimAfter = Number(req.body.claim_after_days);
-  const penalty = Number(String(req.body.penalty_percent).replace(',', '.'));
   if (Number.isInteger(reminder) && reminder >= 1 && reminder <= 15) setSetting('reminder_days', reminder);
   if (Number.isInteger(claimAfter) && claimAfter >= 1 && claimAfter <= 60) setSetting('claim_after_days', claimAfter);
-  if (penalty >= 0 && penalty <= 1) setSetting('penalty_percent', penalty);
   const url = u.str(req.body.public_url, 200).replace(/\/$/, '');
   if (!url || /^https?:\/\/[^\s/]+(\/[^\s]*)?$/.test(url)) setSetting('public_url', url);
   u.flash(req, 'ok', 'Настройки сохранены');

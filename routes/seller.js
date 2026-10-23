@@ -85,9 +85,9 @@ router.post('/new', (req, res) => {
   }
   const id = db.transaction(() => {
     const info = db.prepare(`INSERT INTO applications (seller_id, entrepreneur_id, product_name, product_price, down_payment, months,
-        markup_percent, markup_amount, total_amount, financed_amount, monthly_payment, pay_token, penalty_percent)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(req.user.id, ...productValues(p), crypto.randomBytes(18).toString('hex'), getSettings().penaltyPercent);
+        markup_percent, markup_amount, total_amount, financed_amount, monthly_payment, pay_token)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(req.user.id, ...productValues(p), crypto.randomBytes(18).toString('hex'));
     const yy = String(new Date().getFullYear()).slice(2);
     db.prepare('UPDATE applications SET number = ? WHERE id = ?')
       .run(`РТ-${yy}-${String(info.lastInsertRowid).padStart(6, '0')}`, info.lastInsertRowid);
