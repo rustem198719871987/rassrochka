@@ -144,9 +144,10 @@ legend::before { content: ''; width: 6px; height: 18px; background: var(--yellow
 
 /* ---------- статистика ---------- */
 .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 16px; margin-bottom: 24px; }
-.stat { border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; text-decoration: none; display: block; }
+.stat { border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; text-decoration: none; display: block; min-width: 0; container-type: inline-size; }
 .stat .label { color: var(--muted); font-size: 13px; font-weight: 600; }
-.stat .value { font-size: 28px; font-weight: 800; margin-top: 4px; }
+/* размер цифры подстраивается под ширину плитки, чтобы сумма не выходила за край */
+.stat .value { font-size: clamp(20px, 12.5cqi, 28px); font-weight: 800; margin-top: 4px; line-height: 1.15; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .stat .extra { font-size: 13px; color: var(--muted); }
 .stat.accent { background: var(--yellow); border-color: var(--yellow); }
 .stat.accent .label, .stat.accent .extra { color: #4a4100; }
@@ -296,7 +297,9 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .kpi .delta { font-size: 12.5px; font-weight: 700; margin-top: 2px; }
 .kpi .delta.up { color: var(--ok); }
 .kpi .delta.down { color: var(--err); }
-.kpi.hero .value { font-size: 40px; }
+.kpi.hero { grid-column: span 2; }
+.kpi.hero .value { font-size: clamp(26px, 11cqi, 44px); }
+@media (max-width: 480px) { .kpi.hero { grid-column: auto; } }
 .charts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
 .chart-wrap { position: relative; overflow-x: auto; }
 .chart-wrap svg { display: block; width: 100%; min-width: 520px; height: auto; }
