@@ -57,19 +57,22 @@ install -d -o "$APP_USER" -g "$APP_USER" -m 700 "$DATA_DIR"
 install -d -o root -g root -m 700 "$BACKUP_DIR"
 
 log "Код сайта"
-CLONE_URL="$REPO_URL"
-if [ -n "${GITHUB_TOKEN:-}" ]; then CLONE_URL="${REPO_URL/https:\/\//https://x-access-token:${GITHUB_TOKEN}@}"; fi
-if [ -d "$APP_DIR/.git" ]; then
-  sudo -u "$APP_USER" git -C "$APP_DIR" remote set-url origin "$CLONE_URL"
-  sudo -u "$APP_USER" git -C "$APP_DIR" fetch -q origin "$BRANCH"
-  sudo -u "$APP_USER" git -C "$APP_DIR" reset -q --hard "origin/$BRANCH"
+# скрипт загрузки берём из той же ветки репозитория, что и этот установщик
+FETCH=/usr/local/bin/rassrochka-fetch-code
+RAW_BASE="https://raw.githubusercontent.com/$(printf '%s' "$REPO_URL" | sed -E 's#^https://github.com/##; s#\.git$##')/${BRANCH}"
+if [ -f "$APP_DIR/deploy/fetch-code.sh" ]; then
+  install -m 750 "$APP_DIR/deploy/fetch-code.sh" "$FETCH"
+elif [[ "$REPO_URL" == https://github.com/* ]]; then
+  RAW_AUTH=()
+  if [ -n "${GITHUB_TOKEN:-}" ]; then RAW_AUTH=(-H "Authorization: token ${GITHUB_TOKEN}"); fi
+  curl -fsSL --retry 3 "${RAW_AUTH[@]}" "$RAW_BASE/deploy/fetch-code.sh" -o "$FETCH"
+  chmod 750 "$FETCH"
 else
-  find "$APP_DIR" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
-  sudo -u "$APP_USER" git clone -q --branch "$BRANCH" "$CLONE_URL" "$APP_DIR"
+  # локальный репозиторий (проверка установки): берём скрипт из него
+  install -m 750 "${REPO_URL#file://}/deploy/fetch-code.sh" "$FETCH"
 fi
-# токен не храним в настройках git
-sudo -u "$APP_USER" git -C "$APP_DIR" remote set-url origin "$REPO_URL"
-sudo -u "$APP_USER" git -C "$APP_DIR" log --oneline -1
+REPO_URL="$REPO_URL" BRANCH="$BRANCH" APP_DIR="$APP_DIR" APP_USER="$APP_USER" GITHUB_TOKEN="${GITHUB_TOKEN:-}" "$FETCH"
+install -m 750 "$APP_DIR/deploy/fetch-code.sh" "$FETCH"
 
 log "Зависимости"
 (cd "$APP_DIR" && sudo -u "$APP_USER" HOME="$APP_DIR" npm ci --omit=dev --no-audit --no-fund --loglevel=error)
