@@ -161,6 +161,31 @@ views/               шаблоны EJS
 public/              стили, логотип, JS
 ```
 
+## Установка на сервер (Ubuntu 22.04 / 24.04)
+
+На чистом сервере под root одной командой (репозиторий открытый):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/rustem198719871987/rassrochka/main/deploy/install.sh | bash
+```
+
+Если репозиторий приватный — с токеном GitHub (только чтение содержимого этого репозитория):
+
+```bash
+curl -fsSL -H "Authorization: token ТОКЕН" https://raw.githubusercontent.com/rustem198719871987/rassrochka/main/deploy/install.sh | GITHUB_TOKEN=ТОКЕН bash
+```
+
+С доменом и HTTPS (A-запись домена должна указывать на сервер): добавьте перед `bash` переменные
+`DOMAIN=rassrochka.top EMAIL=почта@mail.ru`. Повторный запуск безопасен — так же подключается домен позже.
+
+Скрипт ставит Node.js 22, nginx, службу systemd с автоперезапуском, файрвол (SSH, HTTP, HTTPS),
+сертификат Let's Encrypt, ежедневные резервные копии в `/var/backups/rassrochka` (03:30, 14 дней).
+Ключи генерируются на сервере в `/etc/rassrochka.env`; пароль администратора показывается в конце установки.
+
+- Обновить до последней версии: `rassrochka-update` (приватный репозиторий: `GITHUB_TOKEN=... rassrochka-update`)
+- Журнал: `journalctl -u rassrochka -f`
+- Данные: `/var/lib/rassrochka`, код: `/opt/rassrochka`
+
 ## Перед запуском в работу
 
 - Разместите сервер в РФ: этого требует 152-ФЗ о локализации персональных данных. Уведомите Роскомнадзор об обработке ПД.
