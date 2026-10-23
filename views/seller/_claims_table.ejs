@@ -3,10 +3,10 @@
 <div class="table-wrap">
   <table class="table">
     <thead><tr>
-      <th>Претензия</th><% if (!locals.compact) { %><th>Клиент</th><% } %><th class="num">Долг</th><th class="num">Неустойка</th><th>Просрочка</th><th>Статус</th><th></th>
+      <th>Претензия</th><% if (!locals.compact) { %><th>Клиент</th><% } %><th class="num">Долг</th><th>Просрочка</th><th>Статус</th><th></th>
     </tr></thead>
     <tbody>
-      <% if (!rows.length) { %><tr><td colspan="7" class="empty">Претензий нет</td></tr><% } %>
+      <% if (!rows.length) { %><tr><td colspan="6" class="empty">Претензий нет</td></tr><% } %>
       <% for (const c of rows) { %>
         <tr>
           <td class="nowrap"><a href="/app/claims/<%= c.id %>" target="_blank"><b><%= c.number %></b></a><div class="small muted"><%= date(c.created_at) %></div></td>
@@ -14,7 +14,6 @@
             <td><%= fio(c) %><div class="small muted"><a href="/app/<%= c.app_id %>"><%= c.app_number %></a> · <%= phone(c.phone) %></div></td>
           <% } %>
           <td class="num"><b><%= money(c.overdue_amount) %></b></td>
-          <td class="num"><%= money(c.penalty) %></td>
           <td class="nowrap"><%= c.overdue_days %> дн.</td>
           <td><span class="pill <%= CLAIM_PILL[c.status] %>"><%= CLAIM_STATUS[c.status] %></span>
             <% if (c.status === 'closed' && c.close_reason) { %><div class="small muted"><%= c.close_reason %></div><% } %></td>
