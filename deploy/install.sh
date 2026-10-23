@@ -102,6 +102,7 @@ if [ -n "${DOMAIN:-}" ]; then SITE_URL="https://${DOMAIN}"; else SITE_URL="http:
 sed -i "s#^PUBLIC_URL=.*#PUBLIC_URL=${SITE_URL}#" "$ENV_FILE"
 
 log "Служба systemd"
+NODE_BIN="$(command -v node)"
 cat > /etc/systemd/system/rassrochka.service <<EOF
 [Unit]
 Description=Рассрочка.Топ
@@ -115,7 +116,7 @@ Group=${APP_USER}
 WorkingDirectory=${APP_DIR}
 EnvironmentFile=${ENV_FILE}
 Environment=NODE_ENV=production
-ExecStart=/usr/bin/node server.js
+ExecStart=${NODE_BIN} server.js
 Restart=always
 RestartSec=3
 NoNewPrivileges=true
