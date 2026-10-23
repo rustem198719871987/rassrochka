@@ -69,6 +69,8 @@ app.use((req, res, next) => {
     res.locals.pendingSellers = db.prepare("SELECT count(*) AS c FROM users WHERE role='seller' AND status='pending'").get().c;
     res.locals.badgePayments = db.prepare("SELECT count(*) AS c FROM payment_records WHERE status = 'pending'").get().c;
     res.locals.badgeClaims = db.prepare("SELECT count(*) AS c FROM claims WHERE status = 'new'").get().c;
+    res.locals.badgeAnnul = db.prepare("SELECT count(*) AS c FROM annulments WHERE status = 'pending'").get().c;
+    res.locals.badgePayouts = db.prepare("SELECT count(*) AS c FROM payouts WHERE status = 'requested'").get().c;
   } else if (req.user && req.user.status === 'approved') {
     res.locals.badgePayments = db.prepare(`SELECT count(*) AS c FROM payments p JOIN applications a ON a.id = p.application_id
       WHERE a.seller_id = ? AND a.status = 'signed' AND p.paid_amount < p.amount AND p.due_date < ?`).get(req.user.id, payments.today()).c;

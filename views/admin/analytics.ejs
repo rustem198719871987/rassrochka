@@ -1,0 +1,102 @@
+<%- include('../partials/shell_start') %>
+<%
+  const rub = (k) => money(k);
+  const compact = (rubles) => {
+    const a = Math.abs(rubles);
+    if (a >= 1e6) return (rubles / 1e6).toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' млн';
+    if (a >= 1e3) return (rubles / 1e3).toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' тыс';
+    return rubles.toLocaleString('ru-RU', { maximumFractionDigits: 0 });
+  };
+  const delta = (curV, prevV) => {
+    const d = change(curV, prevV);
+    if (d === null) return '<div class="delta">нет данных за прошлый период</div>';
+    const cls = d > 0 ? 'up' : d < 0 ? 'down' : '';
+    return `<div class="delta ${cls}">${d > 0 ? '▲ +' : d < 0 ? '▼ ' : ''}${String(d).replace('.', ',')}% к прошлому периоду</div>`;
+  };
+  const pctOf = (part, whole) => whole ? (Math.round(part / whole * 1000) / 10).toLocaleString('ru-RU') + '%' : '—';
+%>
+<div class="page-head">
+  <div>
+    <h1>Аналитика</h1>
+    <div class="sub"><%= date(p.from) %> — <%= date(p.to) %> · сравнение с <%= date(prevP.from) %> — <%= date(prevP.to) %></div>
+  </div>
+</div>
+
+<div class="period-bar">
+  <div class="filters" style="margin:0">
+    <% for (const [k, v] of Object.entries(PRESETS)) { %><a href="/admin/analytics?p=<%= k %>" class="<%= p.preset === k ? 'active' : '' %>"><%= v %></a><% } %>
+  </div>
+  <form method="get" action="/admin/analytics">
+    <label class="small muted" for="af">с</label><input class="input" type="date" id="af" name="from" value="<%= p.from %>">
+    <label class="small muted" for="at">по</label><input class="input" type="date" id="at" name="to" value="<%= p.to %>">
+    <button class="btn btn-dark btn-sm" type="submit">Показать</button>
+  </form>
+</div>
+
+<div class="stats">
+  <div class="stat accent kpi hero"><div class="label">Прибыль</div><div class="value"><%= rub(cur.profit) %></div><%- delta(cur.profit, prev.profit) %></div>
+  <div class="stat kpi"><div class="label">Оформлено рассрочек</div><div class="value"><%= cur.count %></div><%- delta(cur.count, prev.count) %></div>
+  <div class="stat kpi"><div class="label">Сумма договоров</div><div class="value"><%= rub(cur.total) %></div><%- delta(cur.total, prev.total) %></div>
+  <div class="stat kpi"><div class="label">Поступило оплат</div><div class="value"><%= rub(cur.received) %></div><%- delta(cur.received, prev.received) %></div>
+</div>
+
+<div class="charts">
+  <div class="card">
+    <div class="card-head"><h2>Прибыль по <%= ser.byMonth ? 'месяцам' : 'дням' %></h2><span class="small muted">наведите на столбец</span></div>
+    <%- include('_bars', { title: 'Прибыль', points: ser.points.map((x) => ({ ...x, value: x.profit / 100 })), fmt: (v) => money(Math.round(v * 100)), axisFmt: compact }) %>
+  </div>
+  <div class="card">
+    <div class="card-head"><h2>Оформлено рассрочек</h2></div>
+    <%- include('_bars', { title: 'Оформлено рассрочек', points: ser.points.map((x) => ({ ...x, value: x.count })), fmt: (v) => v + ' шт.', axisFmt: (v) => String(v) }) %>
+  </div>
+</div>
+
+<div class="two-col" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+  <div class="card">
+    <h2>Из чего складывается прибыль</h2>
+    <div class="summary">
+      <div class="row"><span>Стоимость проданных товаров</span><b><%= rub(cur.price) %></b></div>
+      <div class="row"><span>Наценка за рассрочку</span><b>+ <%= rub(cur.markup) %></b></div>
+      <div class="row"><span>Вознаграждение продавцов</span><b>− <%= rub(cur.commission) %></b></div>
+      <hr>
+      <div class="row"><span><b>Прибыль</b></span><b><%= rub(cur.profit) %></b></div>
+      <div class="row small muted"><span>Рентабельность к стоимости товаров</span><span><%= pctOf(cur.profit, cur.price) %></span></div>
+    </div>
+    <p class="footnote">Прибыль = наценка за рассрочку − вознаграждение продавцов. Себестоимость товара система не учитывает.</p>
+  </div>
+  <div class="card">
+    <h2>Показатели периода</h2>
+    <div class="summary">
+      <div class="row"><span>Средний чек</span><b><%= rub(cur.avgCheck) %></b></div>
+      <div class="row"><span>Средний срок</span><b><%= cur.avg_months ? cur.avg_months.toLocaleString('ru-RU', { maximumFractionDigits: 1 }) + ' мес' : '—' %></b></div>
+      <div class="row"><span>Первые взносы</span><b><%= rub(cur.down) %></b></div>
+    </div>
+    <h3 style="margin-top:18px">Портфель сейчас</h3>
+    <div class="summary">
+      <div class="row"><span>Активных рассрочек</span><b><%= portfolio.active %></b></div>
+      <div class="row"><span>Осталось получить</span><b><%= rub(portfolio.outstanding) %></b></div>
+      <div class="row"><span>Из них просрочено</span><b style="<%= portfolio.overdue ? 'color:var(--err)' : '' %>"><%= rub(portfolio.overdue) %></b></div>
+    </div>
+  </div>
+</div>
+
+<% const table = (title, rows, label, fmtGroup) => { %>
+  <h2><%= title %></h2>
+  <div class="table-wrap" style="margin-bottom:24px">
+    <table class="table">
+      <thead><tr><th><%= label %></th><th class="num">Рассрочек</th><th class="num">Сумма договоров</th><th class="num">Наценка</th><th class="num">Вознаграждение</th><th class="num">Прибыль</th><th class="num">Доля прибыли</th></tr></thead>
+      <tbody>
+        <% if (!rows.length) { %><tr><td colspan="7" class="empty">Нет данных за период</td></tr><% } %>
+        <% for (const r of rows) { %>
+          <tr><td><b><%= fmtGroup(r.grp) %></b></td><td class="num"><%= r.count %></td><td class="num"><%= rub(r.total) %></td><td class="num"><%= rub(r.markup) %></td><td class="num"><%= rub(r.commission) %></td><td class="num"><b><%= rub(r.profit) %></b></td><td class="num"><%= pctOf(r.profit, cur.profit) %></td></tr>
+        <% } %>
+      </tbody>
+    </table>
+  </div>
+<% } %>
+<% table('По продавцам', bySeller, 'Продавец', (g) => g) %>
+<% table('По ИП', byIp, 'ИП', (g) => g) %>
+<% table('По сроку рассрочки', byTerm, 'Срок', (g) => g + ' мес') %>
+
+<p class="footnote">Учитываются рассрочки, оформленные (подписанные) в выбранном периоде. Аннулированные рассрочки в аналитику не входят<%= cur.annulled ? ` (за период аннулировано: ${cur.annulled})` : '' %>. «Поступило оплат» — подтверждённые оплаты и первые взносы за период.</p>
+<%- include('../partials/shell_end') %>

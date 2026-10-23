@@ -294,18 +294,47 @@
 <%# ======================= ГОТОВО ======================= %>
 <% if (step === 6) { %>
   <% const openClaim = claims.find((c) => c.status !== 'closed');
-     const nextPay = schedule.find((p) => p.remaining > 0);
-     const left = schedule.reduce((sum, p) => sum + (p.remaining || 0), 0);
-     const pendingCount = records.filter((r) => r.status === 'pending').length; %>
+     const nextPay = a.status === 'annulled' ? null : schedule.find((p) => p.remaining > 0);
+     const left = a.status === 'annulled' ? 0 : schedule.reduce((sum, p) => sum + (p.remaining || 0), 0);
+     const pendingCount = records.filter((r) => r.status === 'pending').length;
+     const annulled = a.status === 'annulled';
+     const annulPending = annuls.find((n) => n.status === 'pending');
+     const annulApproved = annuls.find((n) => n.status === 'approved');
+     const annulRejected = !annulPending && !annulled && annuls.find((n) => n.status === 'rejected'); %>
   <div class="success">
     <div>
-      <div class="bubble">
-        <div class="t"><%= a.status === 'closed' ? 'Рассрочка полностью погашена' : 'Рассрочка оформлена' %></div>
-        <div>Договор подписан по SMS <%= dateTime(a.contract_signed_at) %>.</div>
-        <% if (a.status === 'signed' && !contractPages.length) { %><div>Загрузите скан подписанного договора — кнопка ниже.</div><% } %>
-      </div>
+      <% if (annulled) { %>
+        <div class="annul-banner">
+          <div class="t">Рассрочка аннулирована <%= date(a.annulled_at) %></div>
+          <% if (annulApproved) { %><div><b>Причина:</b> <%= annulApproved.reason %></div><% } %>
+          <div class="small">Напоминания и претензии по договору остановлены, вознаграждение продавца сторнировано. Документы и история сохранены.</div>
+        </div>
+      <% } else { %>
+        <div class="bubble">
+          <div class="t"><%= a.status === 'closed' ? 'Рассрочка полностью погашена' : 'Рассрочка оформлена' %></div>
+          <div>Договор подписан по SMS <%= dateTime(a.contract_signed_at) %>.</div>
+          <% if (a.status === 'signed' && !contractPages.length) { %><div>Загрузите скан подписанного договора — кнопка ниже.</div><% } %>
+        </div>
+      <% } %>
 
-      <% if (debt.rows.length) { %>
+      <% if (annulPending) { %>
+        <div class="alert alert-warn" style="margin-top:20px" id="annul">
+          <b>Запрос на аннулирование</b> от <%= dateTime(annulPending.created_at) %><% if (annulPending.u_last) { %>, <%= fioShort({ last_name: annulPending.u_last, first_name: annulPending.u_first, middle_name: annulPending.u_middle }) %><% } %>.
+          <div style="margin-top:4px"><b>Причина:</b> <%= annulPending.reason %></div>
+          <% if (isAdmin) { %>
+            <div class="row-actions" style="justify-content:flex-start;margin-top:12px">
+              <form method="post" action="/admin/annulments/<%= annulPending.id %>/approve"><%- hidden %><button class="btn btn-danger btn-sm" type="submit">Аннулировать</button></form>
+              <form method="post" action="/admin/annulments/<%= annulPending.id %>/reject" class="reject-form"><%- hidden %><input class="input input-sm" name="comment" placeholder="Причина отказа" aria-label="Причина отказа"><button class="btn btn-outline btn-sm" type="submit">Отказать</button></form>
+            </div>
+          <% } else { %>
+            <div class="small" style="margin-top:4px">Ждёт решения администратора.</div>
+          <% } %>
+        </div>
+      <% } else if (annulRejected) { %>
+        <div class="alert alert-info" style="margin-top:20px">В аннулировании отказано <%= date(annulRejected.decided_at) %><%= annulRejected.decision_comment ? ': ' + annulRejected.decision_comment : '' %>.</div>
+      <% } %>
+
+      <% if (debt.rows.length && a.status === 'signed') { %>
         <div class="alert alert-error" style="margin-top:20px">
           <b>Просрочка <%= debt.maxDays %> дн.</b> Долг <%= money(debt.overdue) %>.
           <% if (openClaim) { %><a href="/app/claims/<%= openClaim.id %>" target="_blank">Претензия <%= openClaim.number %></a> — <%= CLAIM_STATUS[openClaim.status].toLowerCase() %>.<% } else { %>Претензия сформируется автоматически на <%= settings.claimAfterDays %>-й день просрочки.<% } %>
@@ -335,7 +364,7 @@
         <% } else { %>
           <p class="muted" style="margin-top:0">После подписания сфотографируйте все страницы договора с подписями. Файлы хранятся в зашифрованном виде и доступны в этой карточке в любой момент.</p>
         <% } %>
-        <div class="scan-actions" data-contract-scan data-app="<%= a.id %>" data-csrf="<%= csrf %>">
+        <div class="scan-actions" data-contract-scan data-app="<%= a.id %>" data-csrf="<%= csrf %>" <%= annulled ? 'hidden' : '' %>>
           <button type="button" class="btn btn-dark" data-scan-start><%- include('../partials/icon', { icon: 'camera' }) %><%= contractPages.length ? 'Добавить страницы по QR-коду' : 'Загрузить по QR-коду' %></button>
           <form method="post" action="/app/<%= a.id %>/contract-files?_csrf=<%= csrf %>" enctype="multipart/form-data" class="file-form">
             <label class="btn btn-outline"><%- include('../partials/icon', { icon: 'upload' }) %>С компьютера<input type="file" name="files" multiple accept="image/jpeg,image/png,application/pdf" hidden onchange="this.form.submit()"></label>
@@ -363,7 +392,7 @@
         </div>
         <div class="mini-stats">
           <div><span>Оплачено</span><b><%= money(paidTotal + a.down_payment) %></b></div>
-          <div><span>Осталось</span><b><%= money(left) %></b></div>
+          <% if (a.status !== 'annulled') { %><div><span>Осталось</span><b><%= money(left) %></b></div><% } %>
           <% if (nextPay) { %><div><span>Следующий платёж</span><b><%= money(nextPay.remaining) %> до <%= date(nextPay.due_date) %></b></div><% } %>
         </div>
         <%- include('_schedule') %>
@@ -448,14 +477,22 @@
     </div>
 
     <div>
-      <% if (qr) { %>
+      <% if (a.seller_commission_percent || a.seller_commission) { %>
+        <div class="card reward-card<%= annulled ? ' void' : '' %>">
+          <h3><%= isAdmin ? 'Вознаграждение продавца' : 'Ваше вознаграждение' %></h3>
+          <div class="reward-sum"><%= money(a.seller_commission) %></div>
+          <div class="small muted"><%= String(a.seller_commission_percent).replace('.', ',') %>% за рассрочку на <%= a.months %> мес<%= annulled ? ' · сторнировано при аннулировании' : '' %></div>
+          <% if (!isAdmin && !annulled) { %><a class="btn btn-outline btn-sm" style="margin-top:12px" href="/app/rewards">Вывести средства</a><% } %>
+        </div>
+      <% } %>
+      <% if (qr && !annulled) { %>
         <div class="card qr-box">
           <h3>Быстрая оплата по QR</h3>
           <img src="<%= qr %>" alt="QR-код для оплаты">
           <p class="small muted">Отсканируйте в приложении любого банка → «Оплата по QR». Сумма ближайшего платежа подставится автоматически.</p>
         </div>
       <% } %>
-      <div class="card">
+      <div class="card" <%= annulled ? 'hidden' : '' %>>
         <h3>Страница оплаты для клиента</h3>
         <p class="small muted" style="margin-top:0">График, сколько дней до платежа и QR-код. Ссылка уходит клиенту в SMS.</p>
         <div class="copy-row"><input class="input input-sm" id="pay_url" value="<%= payUrl %>" readonly><button class="btn btn-outline btn-sm" type="button" data-copy="#pay_url">Копировать</button></div>
@@ -474,6 +511,27 @@
         <h3>Реквизиты для оплаты</h3>
         <%- include('_requisites') %>
       </div>
+      <% if (!annulled && !annulPending) { %>
+        <div class="card annul-card">
+          <h3>Отказ клиента или возврат товара</h3>
+          <p class="small muted" style="margin-top:0"><%= isAdmin ? 'Рассрочка будет аннулирована сразу.' : 'Запрос уйдёт администратору. После одобрения рассрочка станет аннулированной.' %></p>
+          <button class="btn btn-danger btn-block" type="button" data-open-dialog="#annul-dialog"><%- include('../partials/icon', { icon: 'x-circle' }) %>Аннулировать рассрочку</button>
+        </div>
+        <dialog id="annul-dialog" class="dialog" aria-labelledby="annul-title">
+          <form method="post" action="/app/<%= a.id %>/annul">
+            <%- hidden %>
+            <h2 id="annul-title">Аннулировать рассрочку <%= a.number %>?</h2>
+            <p class="muted" style="margin-top:0"><%= fio(a) %> · <%= a.product_name %> · <%= money(a.total_amount) %></p>
+            <div class="field"><label for="annul_reason">Причина аннулирования <span class="req">*</span></label>
+              <textarea class="input" id="annul_reason" name="reason" rows="3" required minlength="5" placeholder="Например: клиент вернул товар 24.10, деньги возвращены наличными"></textarea></div>
+            <p class="small muted">Напоминания и претензии по договору прекратятся, вознаграждение за эту рассрочку будет сторнировано.</p>
+            <div class="actions" style="justify-content:flex-end">
+              <button class="btn btn-ghost" type="button" data-close-dialog>Отмена</button>
+              <button class="btn btn-danger" type="submit"><%= isAdmin ? 'Аннулировать' : 'Отправить администратору' %></button>
+            </div>
+          </form>
+        </dialog>
+      <% } %>
     </div>
   </div>
 <% } %>

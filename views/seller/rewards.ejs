@@ -1,0 +1,85 @@
+<%- include('../partials/shell_start') %>
+<% const isAdmin = user.role === 'admin';
+   const PILL = { requested: 'draft', paid: 'approved', rejected: 'declined' }; %>
+<div class="page-head">
+  <div>
+    <h1><%= isAdmin ? 'Вознаграждение: ' + fioShort(seller) : 'Вознаграждение' %></h1>
+    <% const rates = Object.entries(settings.commissionRates).map(([m, v]) => [Number(m), Number(v)]).sort((x, y) => x[0] - y[0]);
+       const rateText = rates.map(([m, v], i) => {
+         const next = rates[i + 1] && rates[i + 1][0];
+         const span = next == null ? `от ${m} мес` : next - m > 1 ? `${m}–${next - 1} мес` : `${m} мес`;
+         return `${span} — ${String(v).replace('.', ',')}%`;
+       }).join(', '); %>
+    <div class="sub">Начисляется за каждую оформленную рассрочку: <%= rateText %> от <%= settings.commissionBase === 'price' ? 'стоимости товара' : 'суммы договора' %>. Если рассрочку аннулируют, вознаграждение по ней списывается.</div>
+  </div>
+  </div>
+  <% if (isAdmin) { %><a class="btn btn-ghost" href="/admin/payouts">← Все выплаты</a><% } %>
+</div>
+
+<div class="balance-grid">
+  <div class="stat accent"><div class="label">Доступно к выводу</div><div class="value"><%= money(bal.available) %></div><% if (bal.total < 0) { %><div class="extra">Долг <%= money(-bal.total) %> удержится из следующих начислений</div><% } %></div>
+  <div class="stat"><div class="label">Начислено всего</div><div class="value"><%= money(bal.earned) %></div><% if (bal.reversed) { %><div class="extra">сторно <%= money(bal.reversed) %></div><% } %></div>
+  <div class="stat"><div class="label">Выплачено</div><div class="value"><%= money(bal.paid) %></div></div>
+  <div class="stat"><div class="label">На выводе</div><div class="value"><%= money(bal.requested) %></div><div class="extra">ждёт перевода администратором</div></div>
+</div>
+
+<% if (!isAdmin) { %>
+  <div class="two-col" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">
+    <form method="post" action="/app/rewards/payout" class="card">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <h2>Вывести средства</h2>
+      <div class="grid">
+        <div class="field col-6"><label for="po_amount">Сумма, ₽</label><input class="input" id="po_amount" name="amount" inputmode="decimal" value="<%= bal.available ? (bal.available / 100).toFixed(2).replace(/\.00$/, '') : '' %>"></div>
+        <div class="field col-6"><label for="po_details">Карта или телефон для СБП</label><input class="input" id="po_details" name="payout_details" value="<%= user.payout_details || '' %>" placeholder="2202 2000 1234 5678, Сбербанк"></div>
+      </div>
+      <button class="btn btn-dark" type="submit" <%= bal.available ? '' : 'disabled' %>>Отправить на вывод</button>
+      <p class="small muted" style="margin-bottom:0">Администратор переведёт деньги на указанную карту и отметит выплату.</p>
+    </form>
+    <div class="card soft">
+      <h3>Как это работает</h3>
+      <ol class="small" style="padding-left:18px;margin:0;display:grid;gap:6px">
+        <li>Вознаграждение начисляется сразу после подписания договора клиентом.</li>
+        <li>Вы отправляете заявку на вывод любой суммы в пределах доступной.</li>
+        <li>Администратор переводит деньги на карту и отмечает выплату — она появится в истории.</li>
+      </ol>
+    </div>
+  </div>
+<% } %>
+
+<h2>Заявки на вывод</h2>
+<div class="table-wrap" style="margin-bottom:24px">
+  <table class="table">
+    <thead><tr><th>№</th><th>Дата</th><th class="num">Сумма</th><th>Куда</th><th>Статус</th></tr></thead>
+    <tbody>
+      <% if (!payouts.length) { %><tr><td colspan="5" class="empty">Заявок на вывод ещё не было</td></tr><% } %>
+      <% for (const p of payouts) { %>
+        <tr>
+          <td><%= p.id %></td>
+          <td class="nowrap"><%= dateTime(p.created_at) %></td>
+          <td class="num"><b><%= money(p.amount) %></b></td>
+          <td><%= p.details %></td>
+          <td><span class="pill <%= PILL[p.status] %>"><%= PAYOUT_STATUS[p.status] %></span><% if (p.decided_at) { %><div class="small muted"><%= dateTime(p.decided_at) %><%= p.decision_comment ? ' · ' + p.decision_comment : '' %></div><% } %></td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+
+<h2>История начислений</h2>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Дата</th><th>Операция</th><th>Договор</th><th class="num">Сумма</th></tr></thead>
+    <tbody>
+      <% if (!ledger.length) { %><tr><td colspan="4" class="empty">Начислений пока нет. Вознаграждение появится после первой оформленной рассрочки.</td></tr><% } %>
+      <% for (const l of ledger) { %>
+        <tr class="<%= l.kind === 'reversal' ? 'row-annulled' : '' %>">
+          <td class="nowrap"><%= dateTime(l.created_at) %></td>
+          <td><%= LEDGER_KIND[l.kind] %><div class="small muted"><%= l.comment %></div></td>
+          <td><% if (l.application_id) { %><a href="/app/<%= l.application_id %>"><b><%= l.number %></b></a><div class="small muted"><%= fioShort(l) %> · <%= l.months %> мес · <%= String(l.seller_commission_percent).replace('.', ',') %>%</div><% } else { %>—<% } %></td>
+          <td class="num"><b style="color:<%= l.amount < 0 ? 'var(--err)' : 'var(--ok)' %>"><%= l.amount > 0 ? '+' : '−' %><%= money(Math.abs(l.amount)) %></b></td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/shell_end') %>

@@ -15,6 +15,7 @@
           <td class="num"><%= p.id ? (p.paid_amount ? money(p.paid_amount) : '—') : '' %></td>
           <td>
             <% if (!p.id) { %><span class="pill">План</span>
+            <% } else if (a.status === 'annulled' && p.state !== 'paid') { %><span class="pill cancelled">Не взыскивается</span>
             <% } else if (p.state === 'paid') { %><span class="pill approved">Оплачен <%= date(p.paid_at) %></span>
             <% } else { %>
               <span class="pill <%= PILL[p.state] %>"><%= daysLabel(p) %></span>

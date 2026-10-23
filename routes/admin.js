@@ -10,6 +10,9 @@ const payments = require('../lib/payments');
 const statement = require('../lib/statement');
 const storage = require('../lib/storage');
 const jobs = require('../lib/jobs');
+const commission = require('../lib/commission');
+const annulments = require('../lib/annulments');
+const analytics = require('../lib/analytics');
 const { setUserIps, PERSON_COLS } = require('./auth');
 
 const router = express.Router();
@@ -31,6 +34,8 @@ router.get('/', (req, res) => {
                   WHERE a.status = 'signed' AND p.paid_amount < p.amount AND p.due_date < ?`, payments.today()),
     records: one("SELECT count(*) c, coalesce(sum(amount),0) s FROM payment_records WHERE status = 'pending'"),
     claims: one("SELECT count(*) c, coalesce(sum(overdue_amount),0) s FROM claims WHERE status IN ('new','handed')"),
+    annuls: one("SELECT count(*) c FROM annulments WHERE status = 'pending'").c,
+    payouts: one("SELECT count(*) c, coalesce(sum(amount),0) s FROM payouts WHERE status = 'requested'"),
     noScan: one(`SELECT count(*) c FROM applications a WHERE a.status IN ('signed','closed')
                  AND NOT EXISTS (SELECT 1 FROM documents d WHERE d.application_id = a.id AND d.kind = 'contract_page')`).c,
     declined: one("SELECT count(*) c FROM applications WHERE status = 'declined'").c,
@@ -314,6 +319,78 @@ router.post('/transactions/:tid/ignore', (req, res) => {
   res.redirect(`/admin/statements/${tx.upload_id}`);
 });
 
+// ---------- аннулирование ----------
+router.get('/annulments', (req, res) => {
+  const rows = db.prepare(`
+    SELECT n.*, a.number, a.id AS app_id, a.status AS app_status, a.total_amount, a.product_name, a.contract_signed_at,
+           a.last_name, a.first_name, a.middle_name, a.seller_commission,
+           u.last_name AS s_last, u.first_name AS s_first, u.middle_name AS s_middle,
+           (SELECT coalesce(sum(paid_amount), 0) FROM payments p WHERE p.application_id = a.id) + a.down_payment AS paid
+    FROM annulments n JOIN applications a ON a.id = n.application_id LEFT JOIN users u ON u.id = n.requested_by
+    ORDER BY CASE n.status WHEN 'pending' THEN 0 ELSE 1 END, n.id DESC LIMIT 200`).all();
+  res.render('admin/annulments', { title: 'Аннулирование', rows, ANNUL_STATUS: annulments.ANNUL_STATUS });
+});
+
+router.post('/annulments/:nid/approve', (req, res) => {
+  const r = annulments.approve(Number(req.params.nid), req.user.id, u.str(req.body.comment, 500));
+  u.flash(req, r ? 'ok' : 'error', r ? 'Рассрочка аннулирована. Напоминания и претензии по ней остановлены, вознаграждение продавца сторнировано.' : 'Запрос уже обработан');
+  res.redirect(req.body.back === 'list' || !r ? '/admin/annulments' : `/app/${r.application_id}`);
+});
+
+router.post('/annulments/:nid/reject', (req, res) => {
+  const comment = u.str(req.body.comment, 500);
+  const pending = db.prepare("SELECT * FROM annulments WHERE id = ? AND status = 'pending'").get(Number(req.params.nid));
+  if (pending && !comment) {
+    u.flash(req, 'error', 'Укажите причину отказа — её увидит продавец');
+    return res.redirect(req.body.back === 'list' ? '/admin/annulments' : `/app/${pending.application_id}`);
+  }
+  const r = annulments.reject(Number(req.params.nid), req.user.id, comment);
+  u.flash(req, r ? 'ok' : 'error', r ? 'В аннулировании отказано' : 'Запрос уже обработан');
+  res.redirect(req.body.back === 'list' || !r ? '/admin/annulments' : `/app/${r.application_id}`);
+});
+
+// ---------- выплаты вознаграждения продавцам ----------
+router.get('/payouts', (req, res) => {
+  const rows = db.prepare(`
+    SELECT p.*, u.last_name, u.first_name, u.middle_name, u.phone
+    FROM payouts p JOIN users u ON u.id = p.seller_id
+    ORDER BY CASE p.status WHEN 'requested' THEN 0 ELSE 1 END, p.id DESC LIMIT 200`).all()
+    .map((p) => ({ ...p, bal: p.status === 'requested' ? commission.balance(p.seller_id) : null }));
+  const sellers = db.prepare("SELECT id, last_name, first_name, middle_name FROM users WHERE role = 'seller' AND status IN ('approved','blocked') ORDER BY last_name").all()
+    .map((s) => ({ ...s, bal: commission.balance(s.id) }))
+    .filter((s) => s.bal.earned || s.bal.total);
+  res.render('admin/payouts', { title: 'Выплаты продавцам', rows, sellers, PAYOUT_STATUS: commission.PAYOUT_STATUS });
+});
+
+router.post('/payouts/:pid/paid', (req, res) => {
+  const p = commission.markPaid(Number(req.params.pid), req.user.id, u.str(req.body.comment, 300));
+  u.flash(req, p ? 'ok' : 'error', p ? `Выплата ${u.moneyFmt(p.amount)} отмечена` : 'Заявка уже обработана');
+  res.redirect('/admin/payouts');
+});
+
+router.post('/payouts/:pid/reject', (req, res) => {
+  const comment = u.str(req.body.comment, 300);
+  if (!comment) { u.flash(req, 'error', 'Укажите причину отказа'); return res.redirect('/admin/payouts'); }
+  const ok = commission.rejectPayout(Number(req.params.pid), req.user.id, comment);
+  u.flash(req, ok ? 'ok' : 'error', ok ? 'В выплате отказано' : 'Заявка уже обработана');
+  res.redirect('/admin/payouts');
+});
+
+// ---------- аналитика ----------
+router.get('/analytics', (req, res) => {
+  const p = analytics.period(req.query);
+  const prevP = analytics.previous(p);
+  const cur = analytics.summary(p);
+  const prev = analytics.summary(prevP);
+  const ser = analytics.series(p);
+  res.render('admin/analytics', {
+    title: 'Аналитика', p, prevP, cur, prev, ser,
+    portfolio: analytics.portfolio(),
+    bySeller: analytics.bySeller(p), byIp: analytics.byIp(p), byTerm: analytics.byTerm(p),
+    ticks: analytics.ticks, change: analytics.change, PRESETS: analytics.PRESETS,
+  });
+});
+
 // ---------- претензии ----------
 router.post('/claims/:cid/close', (req, res) => {
   const c = db.prepare("SELECT * FROM claims WHERE id = ? AND status <> 'closed'").get(Number(req.params.cid));
@@ -436,6 +513,16 @@ router.post('/settings', (req, res) => {
   const claimAfter = Number(req.body.claim_after_days);
   if (Number.isInteger(reminder) && reminder >= 1 && reminder <= 15) setSetting('reminder_days', reminder);
   if (Number.isInteger(claimAfter) && claimAfter >= 1 && claimAfter <= 60) setSetting('claim_after_days', claimAfter);
+  // ставки вознаграждения продавца: поле rate_N — «срок от N мес»
+  const rates = {};
+  for (let m = 1; m <= 36; m++) {
+    const raw = req.body[`rate_${m}`];
+    if (raw === undefined || raw === '') continue;
+    const v = Number(String(raw).replace(',', '.'));
+    if (v >= 0 && v <= 50) rates[m] = v;
+  }
+  if (Object.keys(rates).length) setSetting('commission_rates', JSON.stringify(rates));
+  if (['total', 'price'].includes(req.body.commission_base)) setSetting('commission_base', req.body.commission_base);
   const url = u.str(req.body.public_url, 200).replace(/\/$/, '');
   if (!url || /^https?:\/\/[^\s/]+(\/[^\s]*)?$/.test(url)) setSetting('public_url', url);
   u.flash(req, 'ok', 'Настройки сохранены');

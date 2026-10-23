@@ -10,6 +10,18 @@
       <div class="field col-4"><label for="mx">Макс. срок, мес</label><input class="input" id="mx" name="max_months" type="number" min="1" max="36" value="<%= settings.maxMonths %>"></div>
       <div class="field col-12"><label for="sp">Телефон поддержки (показывается на странице входа)</label><input class="input" id="sp" name="support_phone" value="<%= settings.supportPhone %>"></div>
     </div>
+    <h2 style="margin-top:8px">Вознаграждение продавца</h2>
+    <p class="small muted" style="margin-top:0">Процент за рассрочку на указанный срок. Пустое поле — действует ставка предыдущего срока. Для новых договоров.</p>
+    <div class="grid">
+      <% for (let m = 1; m <= settings.maxMonths; m++) { %>
+        <div class="field col-2"><label for="rate_<%= m %>"><%= m %> мес, %</label><input class="input" id="rate_<%= m %>" name="rate_<%= m %>" inputmode="decimal" value="<%= settings.commissionRates[m] ?? '' %>"></div>
+      <% } %>
+      <div class="field col-12"><label for="cb">Считать процент от</label>
+        <select class="input" id="cb" name="commission_base">
+          <option value="total" <%= settings.commissionBase === 'total' ? 'selected' : '' %>>суммы по договору (с наценкой)</option>
+          <option value="price" <%= settings.commissionBase === 'price' ? 'selected' : '' %>>стоимости товара</option>
+        </select></div>
+    </div>
     <h2 style="margin-top:8px">Платежи и просрочка</h2>
     <div class="grid">
       <div class="field col-6"><label for="rd">SMS-напоминание за, дней</label><input class="input" id="rd" name="reminder_days" type="number" min="1" max="15" value="<%= settings.reminderDays %>"></div>

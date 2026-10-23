@@ -59,5 +59,21 @@
     }) + ' ₽';
   }
 
-  return { calculate: calculate, addMonths: addMonths, schedule: schedule, money: money };
+  // Вознаграждение продавца: rates = { 1: 0, 2: 1, 3: 2.5 } — «срок от N мес → процент».
+  // База — сумма по договору (total) или цена товара (price).
+  function commissionRate(months, rates) {
+    var rate = 0;
+    Object.keys(rates || {}).map(Number).sort(function (a, b) { return a - b; }).forEach(function (m) {
+      if (months >= m) rate = Number(rates[m]);
+    });
+    return rate;
+  }
+
+  function commission(opts) {
+    var percent = commissionRate(opts.months, opts.rates);
+    var base = opts.base === 'price' ? opts.price : opts.total;
+    return { percent: percent, amount: Math.round(base * percent / 100) };
+  }
+
+  return { calculate: calculate, addMonths: addMonths, schedule: schedule, money: money, commission: commission, commissionRate: commissionRate };
 });

@@ -50,6 +50,8 @@
         <div class="row"><span>Итого по договору</span><b data-calc-out="total">—</b></div>
         <div class="row"><span>Первый взнос</span><b data-calc-out="down">—</b></div>
         <div class="row"><span>В рассрочку</span><b data-calc-out="financed">—</b></div>
+        <hr>
+        <div class="row"><span><%= user.role === 'admin' ? 'Вознаграждение продавца' : 'Ваше вознаграждение' %> <span data-calc-out="rate"></span></span><b data-calc-out="commission">—</b></div>
       </div>
       <% if (ips.length && (locals.canEdit !== false)) { %>
         <button class="btn btn-dark btn-lg btn-block" type="submit"><%= locals.submitLabel || 'Далее — анкета клиента' %></button>
@@ -57,4 +59,4 @@
     </div>
   </div>
 </form>
-<script>window.MARKUP = <%- JSON.stringify(settings.markupPercent) %>;</script>
+<script>window.MARKUP = <%- JSON.stringify(settings.markupPercent) %>; window.COMMISSION = <%- JSON.stringify({ rates: settings.commissionRates, base: settings.commissionBase }) %>;</script>

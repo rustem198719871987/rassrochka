@@ -26,7 +26,7 @@
     <tbody>
       <% if (!rows.length) { %><tr><td colspan="9" class="empty">Ничего не найдено</td></tr><% } %>
       <% for (const r of rows) { %>
-        <tr class="link-row" data-href="/app/<%= r.id %>">
+        <tr class="link-row<%= r.status === 'annulled' ? ' row-annulled' : '' %>" data-href="/app/<%= r.id %>">
           <td class="nowrap"><a href="/app/<%= r.id %>"><b><%= r.number %></b></a></td>
           <td><%= fio(r) || '—' %><% if (r.phone) { %><div class="muted small nowrap"><%= phone(r.phone) %></div><% } %></td>
           <td><%= r.product_name %></td>

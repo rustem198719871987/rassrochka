@@ -2,6 +2,7 @@
 <div class="page-head">
   <div><h1>Панель администратора</h1><div class="sub">Продавцы, ИП и оформленные рассрочки</div></div>
   <div class="actions">
+    <a class="btn btn-outline" href="/admin/analytics">Аналитика</a>
     <a class="btn btn-outline" href="/admin/ips/new">+ Добавить ИП</a>
     <a class="btn btn-primary" href="/admin/sellers/new">+ Добавить продавца</a>
   </div>
@@ -14,6 +15,8 @@
   <a class="stat" href="/app/payments?f=overdue"><div class="label">Просроченные платежи</div><div class="value" style="<%= stats.overdue.c ? 'color:var(--err)' : '' %>"><%= stats.overdue.c %></div><div class="extra">на <%= money(stats.overdue.s) %></div></a>
   <a class="stat<%= stats.records.c ? ' accent' : '' %>" href="/app/payments#pending"><div class="label">Оплаты в магазине на проверке</div><div class="value"><%= stats.records.c %></div><div class="extra">на <%= money(stats.records.s) %></div></a>
   <a class="stat" href="/app/claims"><div class="label">Претензии к вручению</div><div class="value" style="<%= stats.claims.c ? 'color:var(--err)' : '' %>"><%= stats.claims.c %></div><div class="extra">долг <%= money(stats.claims.s) %></div></a>
+  <a class="stat<%= stats.annuls ? ' accent' : '' %>" href="/admin/annulments"><div class="label">Запросы на аннулирование</div><div class="value"><%= stats.annuls %></div><div class="extra">ждут решения</div></a>
+  <a class="stat<%= stats.payouts.c ? ' accent' : '' %>" href="/admin/payouts"><div class="label">Выплаты продавцам</div><div class="value"><%= stats.payouts.c %></div><div class="extra">на <%= money(stats.payouts.s) %></div></a>
   <a class="stat" href="/app/search?status=signed"><div class="label">Без скана договора</div><div class="value"><%= stats.noScan %></div><div class="extra">оформленные рассрочки</div></a>
 </div>
 

@@ -1,0 +1,37 @@
+<%- include('../partials/shell_start') %>
+<% const PILL = { pending: 'draft', approved: 'annulled', rejected: 'cancelled' }; %>
+<div class="page-head">
+  <div>
+    <h1>Аннулирование рассрочек</h1>
+    <div class="sub">Запросы продавцов при отказе клиента или возврате товара. После одобрения рассрочка не учитывается в аналитике, напоминания и претензии прекращаются.</div>
+  </div>
+</div>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Договор</th><th>Клиент и товар</th><th class="num">Сумма / оплачено</th><th>Причина</th><th>Продавец</th><th>Статус</th><th></th></tr></thead>
+    <tbody>
+      <% if (!rows.length) { %><tr><td colspan="7" class="empty">Запросов на аннулирование нет</td></tr><% } %>
+      <% for (const r of rows) { %>
+        <tr class="<%= r.status === 'approved' ? 'row-annulled' : '' %>">
+          <td class="nowrap"><a href="/app/<%= r.app_id %>"><b><%= r.number %></b></a><div class="small muted">от <%= date(r.contract_signed_at) %></div></td>
+          <td><%= fio(r) %><div class="small muted"><%= r.product_name %></div></td>
+          <td class="num"><b><%= money(r.total_amount) %></b><div class="small muted">оплачено <%= money(r.paid) %></div></td>
+          <td style="max-width:280px"><%= r.reason %><div class="small muted"><%= dateTime(r.created_at) %></div></td>
+          <td class="small"><%= r.s_last ? fioShort({ last_name: r.s_last, first_name: r.s_first, middle_name: r.s_middle }) : '—' %></td>
+          <td><span class="pill <%= PILL[r.status] %>"><%= ANNUL_STATUS[r.status] %></span>
+            <% if (r.decision_comment) { %><div class="small muted"><%= r.decision_comment %></div><% } %></td>
+          <td class="actions-cell">
+            <% if (r.status === 'pending') { %>
+              <div class="row-actions">
+                <form method="post" action="/admin/annulments/<%= r.id %>/approve"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="list"><button class="btn btn-danger btn-sm" type="submit">Аннулировать</button></form>
+                <form method="post" action="/admin/annulments/<%= r.id %>/reject" class="reject-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="list"><input class="input input-sm" name="comment" placeholder="Причина отказа" aria-label="Причина отказа"><button class="btn btn-outline btn-sm" type="submit">Отказать</button></form>
+              </div>
+              <% if (r.seller_commission) { %><div class="small muted" style="text-align:right;margin-top:6px">Вознаграждение <%= money(r.seller_commission) %> будет сторнировано</div><% } %>
+            <% } %>
+          </td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/shell_end') %>

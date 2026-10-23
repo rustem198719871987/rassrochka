@@ -1,0 +1,53 @@
+<%- include('../partials/shell_start') %>
+<% const PILL = { requested: 'draft', paid: 'approved', rejected: 'declined' }; %>
+<div class="page-head">
+  <div>
+    <h1>Выплаты продавцам</h1>
+    <div class="sub">Продавцы отправляют вознаграждение на вывод. Переведите деньги со своей карты и нажмите «Выплачено».</div>
+  </div>
+</div>
+<div class="table-wrap" style="margin-bottom:28px">
+  <table class="table">
+    <thead><tr><th>№</th><th>Продавец</th><th class="num">Сумма</th><th>Куда перевести</th><th>Статус</th><th></th></tr></thead>
+    <tbody>
+      <% if (!rows.length) { %><tr><td colspan="6" class="empty">Заявок на вывод нет</td></tr><% } %>
+      <% for (const p of rows) { %>
+        <tr>
+          <td><%= p.id %><div class="small muted nowrap"><%= dateTime(p.created_at) %></div></td>
+          <td><a href="/app/rewards?seller=<%= p.seller_id %>"><b><%= fioShort(p) %></b></a><div class="small muted nowrap"><%= phone(p.phone) %></div></td>
+          <td class="num"><b><%= money(p.amount) %></b><% if (p.bal && p.amount > p.bal.total) { %><div class="small" style="color:var(--err)">больше баланса (<%= money(p.bal.total) %>)</div><% } %></td>
+          <td><div class="copy-row"><input class="input input-sm" id="det_<%= p.id %>" value="<%= p.details %>" readonly aria-label="Реквизиты"><button class="btn btn-outline btn-sm" type="button" data-copy="#det_<%= p.id %>">Копировать</button></div></td>
+          <td><span class="pill <%= PILL[p.status] %>"><%= PAYOUT_STATUS[p.status] %></span><% if (p.decided_at) { %><div class="small muted"><%= dateTime(p.decided_at) %><%= p.decision_comment ? ' · ' + p.decision_comment : '' %></div><% } %></td>
+          <td class="actions-cell">
+            <% if (p.status === 'requested') { %>
+              <div class="row-actions">
+                <form method="post" action="/admin/payouts/<%= p.id %>/paid" class="reject-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input class="input input-sm" name="comment" placeholder="№ перевода (необяз.)" aria-label="Номер перевода"><button class="btn btn-ok btn-sm" type="submit">Выплачено</button></form>
+                <form method="post" action="/admin/payouts/<%= p.id %>/reject" class="reject-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input class="input input-sm" name="comment" placeholder="Причина" aria-label="Причина отказа"><button class="btn btn-danger btn-sm" type="submit">Отказать</button></form>
+              </div>
+            <% } %>
+          </td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<h2>Баланс продавцов</h2>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Продавец</th><th class="num">Начислено</th><th class="num">Сторно</th><th class="num">Выплачено</th><th class="num">На выводе</th><th class="num">Остаток</th></tr></thead>
+    <tbody>
+      <% if (!sellers.length) { %><tr><td colspan="6" class="empty">Начислений ещё не было</td></tr><% } %>
+      <% for (const s of sellers) { %>
+        <tr class="link-row" data-href="/app/rewards?seller=<%= s.id %>">
+          <td><a href="/app/rewards?seller=<%= s.id %>"><b><%= fio(s) %></b></a></td>
+          <td class="num"><%= money(s.bal.earned) %></td>
+          <td class="num"><%= s.bal.reversed ? '−' + money(s.bal.reversed) : '—' %></td>
+          <td class="num"><%= money(s.bal.paid) %></td>
+          <td class="num"><%= s.bal.requested ? money(s.bal.requested) : '—' %></td>
+          <td class="num"><b><%= money(s.bal.total) %></b></td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/shell_end') %>

@@ -169,6 +169,45 @@
     });
   }
 
+  // ---------- модальные окна ----------
+  document.querySelectorAll('[data-open-dialog]').forEach(function (btn) {
+    var dlg = document.querySelector(btn.dataset.openDialog);
+    if (!dlg) return;
+    btn.addEventListener('click', function () {
+      if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+      var first = dlg.querySelector('textarea, input:not([type=hidden])');
+      if (first) first.focus();
+    });
+    dlg.querySelectorAll('[data-close-dialog]').forEach(function (c) { c.addEventListener('click', function () { dlg.close ? dlg.close() : dlg.removeAttribute('open'); }); });
+    dlg.addEventListener('click', function (e) { if (e.target === dlg && dlg.close) dlg.close(); });
+  });
+
+  // ---------- подсказка над столбцом графика ----------
+  document.querySelectorAll('[data-chart]').forEach(function (wrap) {
+    var tip = wrap.querySelector('.chart-tip');
+    function show(g) {
+      tip.textContent = '';
+      var v = document.createElement('b'); v.textContent = g.dataset.value; tip.appendChild(v);
+      tip.appendChild(document.createTextNode(' ' + g.dataset.label));
+      if (g.dataset.extra) { var e = document.createElement('div'); e.className = 'muted'; e.textContent = g.dataset.extra; tip.appendChild(e); }
+      tip.hidden = false;
+      var r = g.querySelector('.bar-hit').getBoundingClientRect();
+      var w = wrap.getBoundingClientRect();
+      var left = r.left - w.left + r.width / 2 - tip.offsetWidth / 2;
+      tip.style.left = Math.max(0, Math.min(left, w.width - tip.offsetWidth)) + 'px';
+      tip.style.top = Math.max(0, Number(g.dataset.top) / Number(wrap.dataset.h) * wrap.querySelector('svg').getBoundingClientRect().height - tip.offsetHeight - 8) + 'px';
+      wrap.querySelectorAll('.bar.active').forEach(function (b) { b.classList.remove('active'); });
+      g.classList.add('active');
+    }
+    function hide() { tip.hidden = true; wrap.querySelectorAll('.bar.active').forEach(function (b) { b.classList.remove('active'); }); }
+    wrap.querySelectorAll('.bar').forEach(function (g) {
+      g.addEventListener('pointerenter', function () { show(g); });
+      g.addEventListener('focus', function () { show(g); });
+      g.addEventListener('blur', hide);
+    });
+    wrap.addEventListener('pointerleave', hide);
+  });
+
   // ---------- копирование ссылки ----------
   document.querySelectorAll('[data-copy]').forEach(function (btn) {
     btn.addEventListener('click', function () {
@@ -213,7 +252,7 @@
 
     out('months-label', months ? months + ' мес' : '');
     if (!(price > 0) || !months || down >= price) {
-      ['monthly', 'price', 'markup', 'total', 'down', 'financed', 'pct'].forEach(function (k) { out(k, k === 'pct' ? '' : '—'); });
+      ['monthly', 'price', 'markup', 'total', 'down', 'financed', 'pct', 'commission', 'rate'].forEach(function (k) { out(k, k === 'pct' || k === 'rate' ? '' : '—'); });
       var s0 = form.querySelector('[data-calc-schedule]');
       if (s0) s0.textContent = '—';
       return;
@@ -226,6 +265,11 @@
     out('total', money(c.total));
     out('down', money(c.downPayment));
     out('financed', money(c.financed));
+    if (window.COMMISSION) {
+      var cm = Calc.commission({ months: months, price: c.price, total: c.total, rates: window.COMMISSION.rates, base: window.COMMISSION.base });
+      out('commission', money(cm.amount));
+      out('rate', '(' + String(cm.percent).replace('.', ',') + '%)');
+    }
 
     var sch = form.querySelector('[data-calc-schedule]');
     if (sch) {

@@ -11,6 +11,8 @@ const { paymentQr } = require('../lib/qr');
 const storage = require('../lib/storage');
 const payments = require('../lib/payments');
 const { CLAIM_STATUS } = require('../lib/claims');
+const commission = require('../lib/commission');
+const annulments = require('../lib/annulments');
 const { addContractPages, MAX_PAGES } = require('./mobile');
 
 const router = express.Router();
@@ -21,7 +23,10 @@ const EMPLOYMENT = {
   pensioner: 'Пенсионер', student: 'Студент', other: 'Не работает',
 };
 router.use((req, res, next) => {
-  Object.assign(res.locals, { EMPLOYMENT, METHOD: payments.METHOD, RECORD_STATUS: payments.RECORD_STATUS, CLAIM_STATUS, daysLabel: payments.daysLabel });
+  Object.assign(res.locals, {
+    EMPLOYMENT, METHOD: payments.METHOD, RECORD_STATUS: payments.RECORD_STATUS, CLAIM_STATUS, daysLabel: payments.daysLabel,
+    ANNUL_STATUS: annulments.ANNUL_STATUS, PAYOUT_STATUS: commission.PAYOUT_STATUS, LEDGER_KIND: commission.LEDGER_KIND,
+  });
   next();
 });
 
@@ -132,6 +137,41 @@ router.get('/search', (req, res) => {
   res.render('seller/search', { title: req.user.role === 'admin' ? 'Рассрочки' : 'Поиск', q, status, rows });
 });
 
+// ---------- вознаграждение продавца и вывод средств ----------
+router.get('/rewards', (req, res) => {
+  const sellerId = req.user.role === 'admin' ? Number(req.query.seller) || null : req.user.id;
+  if (!sellerId) return res.redirect('/admin/payouts');
+  const seller = db.prepare("SELECT * FROM users WHERE id = ? AND role = 'seller'").get(sellerId);
+  if (!seller) return res.redirect('/admin/payouts');
+  const ledger = db.prepare(`SELECT l.*, a.number, a.months, a.total_amount, a.seller_commission_percent, a.last_name, a.first_name, a.middle_name
+    FROM seller_ledger l LEFT JOIN applications a ON a.id = l.application_id WHERE l.seller_id = ? ORDER BY l.id DESC LIMIT 300`).all(sellerId);
+  const payouts = db.prepare('SELECT * FROM payouts WHERE seller_id = ? ORDER BY id DESC LIMIT 100').all(sellerId);
+  res.render('seller/rewards', { title: 'Вознаграждение', seller, bal: commission.balance(sellerId), ledger, payouts });
+});
+
+router.post('/rewards/details', (req, res) => {
+  if (req.user.role !== 'seller') return res.redirect('/app/rewards');
+  db.prepare('UPDATE users SET payout_details = ? WHERE id = ?').run(u.str(req.body.payout_details, 300) || null, req.user.id);
+  u.flash(req, 'ok', 'Реквизиты для выплаты сохранены');
+  res.redirect('/app/rewards');
+});
+
+router.post('/rewards/payout', (req, res) => {
+  if (req.user.role !== 'seller') return res.redirect('/app/rewards');
+  const bal = commission.balance(req.user.id);
+  const amount = u.rubToKop(req.body.amount);
+  const details = u.str(req.body.payout_details, 300) || req.user.payout_details;
+  if (!details) u.flash(req, 'error', 'Укажите номер карты или телефон для перевода по СБП');
+  else if (!(amount > 0)) u.flash(req, 'error', 'Укажите сумму');
+  else if (amount > bal.available) u.flash(req, 'error', `Доступно к выводу ${u.moneyFmt(bal.available)}`);
+  else {
+    db.prepare('UPDATE users SET payout_details = ? WHERE id = ?').run(details, req.user.id);
+    commission.requestPayout(req.user.id, amount, details);
+    u.flash(req, 'ok', `Заявка на вывод ${u.moneyFmt(amount)} отправлена администратору`);
+  }
+  res.redirect('/app/rewards');
+});
+
 // ---------- платежи: сроки, просрочки, оплаты на подтверждении ----------
 const PAY_FILTERS = { all: 'Все неоплаченные', overdue: 'Просроченные', week: 'Ближайшие 7 дней', month: 'Ближайшие 30 дней' };
 
@@ -225,7 +265,7 @@ router.get('/:id', async (req, res) => {
   const done = currentStep(a);
   let step = Number(req.query.step) || done;
   if (step > done || step < 1 || step > 5) step = done;
-  if (a.status === 'signed' || a.status === 'closed') step = 6; // финальный экран
+  if (['signed', 'closed', 'annulled'].includes(a.status)) step = 6; // финальный экран
 
   const seller = db.prepare('SELECT * FROM users WHERE id = ?').get(a.seller_id);
   const t = payments.today();
@@ -248,6 +288,8 @@ router.get('/:id', async (req, res) => {
     payUrl: `${u.publicBase(req)}/pay/${a.pay_token}`,
     paidTotal: schedule.reduce((sum, p) => sum + (p.paid_amount || 0), 0),
     today: t,
+    annuls: db.prepare(`SELECT n.*, u.last_name AS u_last, u.first_name AS u_first, u.middle_name AS u_middle
+      FROM annulments n LEFT JOIN users u ON u.id = n.requested_by WHERE n.application_id = ? ORDER BY n.id DESC`).all(a.id),
   } : {};
   res.render('seller/application', {
     title: `Заявка ${a.number}`, a, ip: req.ip_, seller, steps: STEPS, step, done, ...after,
@@ -422,6 +464,7 @@ router.post('/:id/sign', (req, res) => {
                 first_payment_date = ?, updated_at = datetime('now') WHERE id = ?`).run(req.ip, u.isoDate(sched[0].date), a.id);
   })();
   req.session.devCode = null;
+  commission.accrue(db.prepare('SELECT * FROM applications WHERE id = ?').get(a.id));
   sms.notify({
     applicationId: a.id, kind: 'signed', phone: a.phone,
     text: `Рассрочка ${a.number} оформлена: ${a.months} мес, платёж ${u.moneyFmt(a.monthly_payment).replace('\u00a0', ' ')}, первый до ${u.dateFmt(u.isoDate(sched[0].date))}. График и оплата: ${u.publicBase(req)}/pay/${a.pay_token}`,
@@ -456,6 +499,23 @@ router.post('/:id/scan', (req, res) => {
 });
 
 const isSigned = (a) => a.status === 'signed' || a.status === 'closed';
+
+// ---------- аннулирование: продавец отправляет запрос, администратор решает ----------
+router.post('/:id/annul', (req, res) => {
+  const a = req.app_;
+  const reason = u.str(req.body.reason, 1000);
+  if (reason.length < 5) {
+    u.flash(req, 'error', 'Опишите причину аннулирования');
+    return res.redirect(`/app/${a.id}`);
+  }
+  const r = annulments.request(a, reason, req.user.id);
+  if (r.error) u.flash(req, 'error', r.error);
+  else if (req.user.role === 'admin') {
+    annulments.approve(r.id, req.user.id, 'Аннулировано администратором');
+    u.flash(req, 'ok', 'Рассрочка аннулирована');
+  } else u.flash(req, 'ok', 'Запрос на аннулирование отправлен администратору');
+  res.redirect(`/app/${a.id}`);
+});
 
 router.post('/:id/contract-scan', (req, res) => {
   if (!isSigned(req.app_)) return res.status(409).json({ error: 'Скан загружается после подписания договора' });

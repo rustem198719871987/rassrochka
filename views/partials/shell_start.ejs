@@ -2,12 +2,15 @@
 <% const isAdmin = user.role === 'admin';
    const nav = isAdmin ? [
      ['/admin', 'Главная', 'home', path === '/admin'],
+     ['/admin/analytics', 'Аналитика', 'chart', path.startsWith('/admin/analytics')],
      ['/admin/sellers', 'Продавцы', 'users', path.startsWith('/admin/sellers'), pendingSellers],
      ['/admin/ips', 'ИП и реквизиты', 'bank', path.startsWith('/admin/ips')],
      ['/app/search', 'Рассрочки', 'list', path === '/app/search' || /^\/app\/\d/.test(path)],
      ['/app/payments', 'Платежи', 'wallet', path === '/app/payments', locals.badgePayments],
      ['/admin/statements', 'Выписки банка', 'bank-doc', path.startsWith('/admin/statements')],
      ['/app/claims', 'Претензии', 'alert', path.startsWith('/app/claims'), locals.badgeClaims],
+     ['/admin/annulments', 'Аннулирование', 'x-circle', path.startsWith('/admin/annulments'), locals.badgeAnnul],
+     ['/admin/payouts', 'Выплаты продавцам', 'coins', path.startsWith('/admin/payouts') || path === '/app/rewards', locals.badgePayouts],
      null,
      ['/app/new', 'Создать заявку', 'plus', path === '/app/new'],
      ['/app/calculator', 'Калькулятор', 'calc', path === '/app/calculator'],
@@ -20,6 +23,7 @@
      ['/app/search', 'Поиск', 'search', path === '/app/search'],
      ['/app/payments', 'Платежи', 'wallet', path === '/app/payments', locals.badgePayments],
      ['/app/claims', 'Претензии', 'alert', path.startsWith('/app/claims'), locals.badgeClaims],
+     ['/app/rewards', 'Вознаграждение', 'coins', path === '/app/rewards'],
    ]; %>
 <div class="shell">
   <aside class="sidebar no-print">
