@@ -297,7 +297,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .kpi .delta.up { color: var(--ok); }
 .kpi .delta.down { color: var(--err); }
 .kpi.hero .value { font-size: 40px; }
-.charts { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: 20px; }
+.charts { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0; }
 .chart-wrap { position: relative; overflow-x: auto; }
 .chart-wrap svg { display: block; width: 100%; min-width: 520px; height: auto; }
 .chart-wrap .axis text { fill: var(--muted); font-size: 11px; font-family: inherit; }
