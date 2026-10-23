@@ -128,10 +128,13 @@ WantedBy=multi-user.target
 EOF
 
 log "Nginx"
+# IPv6 на некоторых серверах выключен — тогда nginx не должен его слушать
+LISTEN_V6=""
+if [ -s /proc/net/if_inet6 ]; then LISTEN_V6="listen [::]:80;"; fi
 cat > /etc/nginx/sites-available/rassrochka <<EOF
 server {
     listen 80;
-    listen [::]:80;
+    ${LISTEN_V6}
     server_name ${DOMAIN:-_};
 
     # фото паспорта и сканы договора с телефона
