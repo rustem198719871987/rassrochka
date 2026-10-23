@@ -42,7 +42,7 @@
 </head>
 <body>
 <div class="toolbar">
-  <a class="sec" href="/app/<%= a.id %>">← К заявке</a>
+  <a class="sec" href="<%= locals.backUrl || `/app/${a.id}` %>">← К заявке</a>
   <button type="button" onclick="window.print()">Распечатать / сохранить PDF</button>
 </div>
 <div class="page">

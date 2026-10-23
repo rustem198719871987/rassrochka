@@ -1,0 +1,13 @@
+<%- include('../partials/shell_start') %>
+<div class="page-head">
+  <div>
+    <h1>Претензии</h1>
+    <div class="sub">Формируются автоматически, когда платёж просрочен на <%= settings.claimAfterDays %> дн. Распечатайте претензию и передайте руководителю магазина для вручения клиенту.</div>
+  </div>
+</div>
+<div class="filters">
+  <a href="/app/claims" class="<%= !status ? 'active' : '' %>">Открытые</a>
+  <% for (const [k, v] of Object.entries(CLAIM_STATUS)) { %><a href="/app/claims?status=<%= k %>" class="<%= status === k ? 'active' : '' %>"><%= v %></a><% } %>
+</div>
+<%- include('_claims_table', { rows }) %>
+<%- include('../partials/shell_end') %>

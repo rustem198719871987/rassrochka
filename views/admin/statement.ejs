@@ -1,0 +1,43 @@
+<%- include('../partials/shell_start') %>
+<% const TX = { matched: ['approved', 'Зачтено'], suggested: ['draft', 'Нужно подтверждение'], unmatched: ['declined', 'Не найдено'], ignored: ['cancelled', 'Не учитывается'] }; %>
+<div class="page-head">
+  <div>
+    <h1>Сверка выписки</h1>
+    <div class="sub"><%= up.filename %> · загружена <%= dateTime(up.created_at) %></div>
+  </div>
+  <a class="btn btn-ghost" href="/admin/statements">← Все выписки</a>
+</div>
+<div class="stats">
+  <div class="stat"><div class="label">Поступлений</div><div class="value"><%= rows.length %></div></div>
+  <div class="stat"><div class="label">Зачтено</div><div class="value" style="color:var(--ok)"><%= rows.filter((r) => r.status === 'matched').length %></div></div>
+  <div class="stat<%= rows.some((r) => r.status === 'suggested' || r.status === 'unmatched') ? ' accent' : '' %>"><div class="label">Требуют решения</div><div class="value"><%= rows.filter((r) => r.status === 'suggested' || r.status === 'unmatched').length %></div></div>
+</div>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Платёж</th><th class="num">Сумма</th><th>Плательщик и назначение</th><th>Договор</th><th>Статус</th><th></th></tr></thead>
+    <tbody>
+      <% if (!rows.length) { %><tr><td colspan="6" class="empty">В выписке нет поступлений на счета ИП из системы</td></tr><% } %>
+      <% for (const t of rows) { %>
+        <tr>
+          <td class="nowrap"><%= date(t.doc_date) %><div class="small muted">п/п № <%= t.doc_number %></div></td>
+          <td class="num"><b><%= money(t.amount) %></b></td>
+          <td><%= t.payer_name %><div class="small muted"><%= t.purpose %></div><div class="small muted"><%= t.ip_name %></div></td>
+          <td class="nowrap"><% if (t.application_id) { %><a href="/app/<%= t.application_id %>#payments"><b><%= t.app_number %></b></a><div class="small muted"><%= fioShort(t) %></div><% } else { %>—<% } %></td>
+          <td><span class="pill <%= TX[t.status][0] %>"><%= TX[t.status][1] %></span><% if (t.note) { %><div class="small muted"><%= t.note %></div><% } %></td>
+          <td class="actions-cell">
+            <% if (t.status === 'suggested' || t.status === 'unmatched') { %>
+              <div class="row-actions">
+                <% if (t.status === 'suggested' && t.application_id) { %>
+                  <form method="post" action="/admin/transactions/<%= t.id %>/apply"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ok btn-sm" type="submit">Зачесть в <%= t.app_number %></button></form>
+                <% } %>
+                <form method="post" action="/admin/transactions/<%= t.id %>/apply" class="reject-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input class="input input-sm" name="contract" placeholder="РТ-26-000001" aria-label="Номер договора"><button class="btn btn-outline btn-sm" type="submit">Зачесть</button></form>
+                <form method="post" action="/admin/transactions/<%= t.id %>/ignore"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="link-btn" type="submit">Не учитывать</button></form>
+              </div>
+            <% } %>
+          </td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/shell_end') %>

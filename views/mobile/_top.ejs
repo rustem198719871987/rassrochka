@@ -1,0 +1,31 @@
+<style>
+  body { background: var(--surface); }
+  .m-head { background: var(--black); padding: 14px 16px; display: flex; align-items: center; justify-content: space-between; }
+  .m-head .logo-word { font-size: 18px; }
+  .m-head .logo img { width: 30px; height: 30px; }
+  .m-head .num { color: var(--yellow); font-weight: 700; font-size: 13px; }
+  .m-wrap { max-width: 520px; margin: 0 auto; padding: 18px 16px 120px; }
+  .m-wrap h1 { font-size: 22px; }
+  .slot { background: var(--white); border-radius: 18px; padding: 16px; margin-bottom: 14px; border: 2px solid transparent; }
+  .slot.filled { border-color: var(--black); }
+  .slot .t { font-weight: 800; display: flex; justify-content: space-between; gap: 8px; }
+  .slot .t .req { color: var(--err); font-size: 12px; font-weight: 700; }
+  .slot .t .ok { color: var(--ok); font-size: 13px; }
+  .slot .d { color: var(--muted); font-size: 13px; margin: 4px 0 12px; }
+  .pick { display: flex; align-items: center; justify-content: center; gap: 10px; border: 2px dashed #c9c9cf; border-radius: 14px; padding: 22px; font-weight: 700; cursor: pointer; background: var(--surface); }
+  .pick svg { width: 26px; height: 26px; }
+  .pick input { display: none; }
+  .preview { display: none; }
+  .slot.filled .preview { display: block; }
+  .slot.filled .pick { display: none; }
+  .preview canvas { width: 100%; height: auto; border-radius: 12px; background: #000; display: block; }
+  .preview .actions { margin-top: 10px; }
+  .send-bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); background: var(--white); box-shadow: 0 -6px 24px rgba(0,0,0,.08); }
+  .send-bar .btn { max-width: 488px; margin: 0 auto; display: flex; }
+  .center-card { background: var(--white); border-radius: 20px; padding: 28px 22px; text-align: center; }
+  .big-ico { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; margin: 0 auto 14px; font-size: 34px; font-weight: 800; }
+</style>
+<header class="m-head">
+  <%- include('../partials/logo', { inverse: true }) %>
+  <% if (s && s.app) { %><span class="num">Заявка <%= s.app.number %></span><% } %>
+</header>

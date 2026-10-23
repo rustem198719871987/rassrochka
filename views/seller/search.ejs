@@ -33,7 +33,9 @@
           <td class="num"><%= money(r.total_amount) %></td>
           <td class="num"><%= money(r.monthly_payment) %></td>
           <td class="nowrap"><%= r.months %> мес</td>
-          <td><span class="pill <%= r.status %>"><%= APP_STATUS[r.status] %></span></td>
+          <td><span class="pill <%= r.status %>"><%= APP_STATUS[r.status] %></span>
+            <% if (r.overdue && r.status === 'signed') { %><div><span class="pill declined">просрочка</span></div><% } %>
+            <% if (r.status === 'signed' || r.status === 'closed') { %><div class="small <%= r.scan_pages ? 'muted' : '' %>" style="<%= r.scan_pages ? '' : 'color:var(--warn)' %>"><%= r.scan_pages ? 'скан: ' + r.scan_pages + ' стр.' : 'нет скана' %></div><% } %></td>
           <td class="nowrap small"><%= date(r.contract_signed_at || r.created_at) %></td>
           <% if (user.role === 'admin') { %><td class="small"><%= fioShort({ last_name: r.s_last, first_name: r.s_first, middle_name: r.s_middle }) %><div class="muted"><%= r.ip_name %></div></td><% } %>
         </tr>

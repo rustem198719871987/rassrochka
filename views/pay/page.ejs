@@ -1,0 +1,75 @@
+<%- include('../partials/head') %>
+<style>
+  body { background: var(--surface); }
+  .p-head { background: var(--black); padding: 14px 16px; }
+  .p-head .logo-word { font-size: 18px; }
+  .p-head .logo img { width: 30px; height: 30px; }
+  .p-wrap { max-width: 640px; margin: 0 auto; padding: 18px 16px 48px; display: grid; gap: 14px; }
+  .p-card { background: var(--white); border-radius: 18px; padding: 20px; }
+  .due { text-align: center; }
+  .due .days { font-size: 56px; font-weight: 800; line-height: 1; margin: 6px 0; font-variant-numeric: tabular-nums; }
+  .due.overdue .days { color: var(--err); }
+  .due .sum { font-size: 22px; font-weight: 800; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .qr-box img { width: 220px; height: 220px; }
+</style>
+<header class="p-head"><%- include('../partials/logo', { inverse: true }) %></header>
+<div class="p-wrap">
+  <div>
+    <h1 style="margin-bottom:2px">Рассрочка <%= a.number %></h1>
+    <div class="muted"><%= fioShort(a) %> · <%= a.product_name %></div>
+  </div>
+
+  <% if (a.status === 'closed') { %>
+    <div class="p-card due"><h2>Рассрочка погашена</h2><p class="muted">Спасибо! Все платежи по договору получены.</p></div>
+  <% } else if (debt.rows.length) { %>
+    <div class="p-card due overdue">
+      <div class="muted">Просрочка платежа</div>
+      <div class="days"><%= debt.maxDays %> дн.</div>
+      <div class="sum">К оплате <%= money(debt.overdue) %></div>
+      <p class="small muted">По договору начисляется неустойка <%= String(a.penalty_percent).replace('.', ',') %>% в день. Оплатите как можно скорее.</p>
+    </div>
+  <% } else if (next) { %>
+    <div class="p-card due">
+      <div class="muted">Следующий платёж <%= date(next.due_date) %></div>
+      <div class="days"><%= next.daysLeft === 0 ? 'Сегодня' : next.daysLeft %></div>
+      <% const n10 = next.daysLeft % 10, n100 = next.daysLeft % 100;
+         const word = n10 === 1 && n100 !== 11 ? 'день' : n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14) ? 'дня' : 'дней'; %>
+      <div class="muted"><%= next.daysLeft === 0 ? '' : `${word} до платежа` %></div>
+      <div class="sum" style="margin-top:8px"><%= money(next.remaining) %></div>
+    </div>
+  <% } %>
+
+  <% if (qr) { %>
+    <div class="p-card qr-box">
+      <h3>Оплатить по QR-коду</h3>
+      <img src="<%= qr %>" alt="QR-код для оплаты">
+      <p class="small muted">Сохраните QR-код или покажите экран: в приложении банка выберите «Оплата по QR». Реквизиты и сумма <%= money(toPay) %> заполнятся сами.</p>
+    </div>
+  <% } %>
+
+  <div class="p-card">
+    <h3>График платежей</h3>
+    <% for (const p of schedule) { %>
+      <div class="row">
+        <span><%= p.n %>. <%= date(p.due_date) %><br><span class="small muted"><%= daysLabel(p) %></span></span>
+        <b class="mono"><%= p.state === 'paid' ? '✓ ' : '' %><%= money(p.state === 'paid' ? p.amount : p.remaining) %></b>
+      </div>
+    <% } %>
+    <div class="row"><span>Осталось выплатить</span><b class="mono"><%= money(left) %></b></div>
+  </div>
+
+  <div class="p-card">
+    <h3>Реквизиты для перевода</h3>
+    <div class="row"><span class="muted">Получатель</span><b style="text-align:right"><%= ip.full_name %></b></div>
+    <div class="row"><span class="muted">ИНН</span><b class="mono"><%= ip.inn %></b></div>
+    <div class="row"><span class="muted">Счёт</span><b class="mono" style="overflow-wrap:anywhere"><%= ip.account %></b></div>
+    <div class="row"><span class="muted">Банк</span><b style="text-align:right"><%= ip.bank_name %></b></div>
+    <div class="row"><span class="muted">БИК</span><b class="mono"><%= ip.bik %></b></div>
+    <div class="row"><span class="muted">Назначение</span><b style="text-align:right">Оплата по договору рассрочки <%= a.number %></b></div>
+    <p class="small muted" style="margin-bottom:0">Обязательно укажите номер договора <b><%= a.number %></b> в назначении платежа. Оплатить также можно наличными в магазине.<% if (ip.phone) { %> Вопросы: <%= phone(ip.phone) %>.<% } %></p>
+  </div>
+</div>
+</body>
+</html>

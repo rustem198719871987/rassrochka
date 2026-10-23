@@ -293,28 +293,160 @@
 
 <%# ======================= ГОТОВО ======================= %>
 <% if (step === 6) { %>
+  <% const openClaim = claims.find((c) => c.status !== 'closed');
+     const nextPay = schedule.find((p) => p.remaining > 0);
+     const left = schedule.reduce((sum, p) => sum + (p.remaining || 0), 0);
+     const pendingCount = records.filter((r) => r.status === 'pending').length; %>
   <div class="success">
     <div>
       <div class="bubble">
-        <div class="t"><%= a.status === 'closed' ? 'Рассрочка полностью погашена' : 'Поздравляем! Рассрочка оформлена.' %></div>
+        <div class="t"><%= a.status === 'closed' ? 'Рассрочка полностью погашена' : 'Рассрочка оформлена' %></div>
         <div>Договор подписан по SMS <%= dateTime(a.contract_signed_at) %>.</div>
-        <% if (a.status === 'signed') { %><div>Не забудьте выдать товар клиенту.</div><% } %>
+        <% if (a.status === 'signed' && !contractPages.length) { %><div>Загрузите скан подписанного договора — кнопка ниже.</div><% } %>
       </div>
-      <h3 style="margin-top:28px">Документы</h3>
-      <ul class="docs-list">
-        <li><a href="/app/<%= a.id %>/contract" target="_blank"><%- include('../partials/icon', { icon: 'doc' }) %>Договор купли-продажи в рассрочку</a></li>
-        <li><a href="/app/<%= a.id %>/contract#schedule" target="_blank"><%- include('../partials/icon', { icon: 'doc' }) %>График платежей и реквизиты</a></li>
-        <li><a href="/app/<%= a.id %>/consent" target="_blank"><%- include('../partials/icon', { icon: 'doc' }) %>Согласие на обработку персональных данных</a></li>
-      </ul>
-      <div class="actions" style="margin:22px 0 28px">
-        <a class="btn btn-dark btn-lg" href="/app/<%= a.id %>/contract?print=1" target="_blank"><%- include('../partials/icon', { icon: 'print' }) %>Распечатать договор</a>
-        <a class="btn btn-outline" href="/app/new">Новая заявка</a>
+
+      <% if (debt.rows.length) { %>
+        <div class="alert alert-error" style="margin-top:20px">
+          <b>Просрочка <%= debt.maxDays %> дн.</b> Долг <%= money(debt.overdue) %>, неустойка на сегодня <%= money(debt.penalty) %>.
+          <% if (openClaim) { %><a href="/app/claims/<%= openClaim.id %>" target="_blank">Претензия <%= openClaim.number %></a> — <%= CLAIM_STATUS[openClaim.status].toLowerCase() %>.<% } else { %>Претензия сформируется автоматически на <%= settings.claimAfterDays %>-й день просрочки.<% } %>
+        </div>
+      <% } %>
+
+      <%# ---------- скан подписанного договора ---------- %>
+      <div class="card" id="contract-scan" style="margin-top:20px">
+        <div class="card-head">
+          <h2>Подписанный договор</h2>
+          <% if (contractPages.length) { %><span class="pill approved">Загружено: <%= contractPages.length %> стр.</span><% } else { %><span class="pill correction">Скан не загружен</span><% } %>
+        </div>
+        <% if (contractPages.length) { %>
+          <div class="scan-pages">
+            <% for (const d of contractPages) { %>
+              <div class="scan-page">
+                <a href="/app/<%= a.id %>/docs/<%= d.id %>" target="_blank" title="Открыть страницу <%= d.page %>">
+                  <% if (d.mime === 'application/pdf') { %><span class="pdf-tile">PDF</span><% } else { %><img src="/app/<%= a.id %>/docs/<%= d.id %>" alt="Страница <%= d.page %>" loading="lazy"><% } %>
+                </a>
+                <span class="small">стр. <%= d.page %> · <%= date(d.created_at) %></span>
+                <% if (isAdmin) { %>
+                  <form method="post" action="/admin/documents/<%= d.id %>/delete" onsubmit="return confirm('Удалить страницу <%= d.page %>?')"><%- hidden %><button class="link-btn" type="submit">Удалить</button></form>
+                <% } %>
+              </div>
+            <% } %>
+          </div>
+        <% } else { %>
+          <p class="muted" style="margin-top:0">После подписания сфотографируйте все страницы договора с подписями. Файлы хранятся в зашифрованном виде и доступны в этой карточке в любой момент.</p>
+        <% } %>
+        <div class="scan-actions" data-contract-scan data-app="<%= a.id %>" data-csrf="<%= csrf %>">
+          <button type="button" class="btn btn-dark" data-scan-start><%- include('../partials/icon', { icon: 'camera' }) %><%= contractPages.length ? 'Добавить страницы по QR-коду' : 'Загрузить по QR-коду' %></button>
+          <form method="post" action="/app/<%= a.id %>/contract-files?_csrf=<%= csrf %>" enctype="multipart/form-data" class="file-form">
+            <label class="btn btn-outline"><%- include('../partials/icon', { icon: 'upload' }) %>С компьютера<input type="file" name="files" multiple accept="image/jpeg,image/png,application/pdf" hidden onchange="this.form.submit()"></label>
+          </form>
+        </div>
+        <div class="scan-body" data-scan-body hidden>
+          <img data-scan-qr alt="QR-код для телефона" width="200" height="200">
+          <div>
+            <div class="scan-status" data-scan-status><span class="spinner"></span>Ждём фото с телефона…</div>
+            <ol class="muted small" style="padding-left:18px">
+              <li>Отсканируйте QR-код камерой телефона.</li>
+              <li>Сфотографируйте страницы договора по порядку.</li>
+              <li>Нажмите «Отправить» — страницы появятся здесь.</li>
+            </ol>
+            <p class="small muted" style="margin:0">Ссылка действует 30 минут: <a data-scan-link target="_blank" rel="noopener">открыть на этом устройстве</a></p>
+          </div>
+        </div>
       </div>
+
+      <%# ---------- график ---------- %>
       <div class="card">
-        <h2>График платежей</h2>
-        <%- include('_schedule', { canToggle: isAdmin }) %>
+        <div class="card-head">
+          <h2>График платежей</h2>
+          <% if (nextPay) { %><span class="pill <%= nextPay.state === 'overdue' ? 'declined' : nextPay.state === 'paid' ? 'approved' : 'draft' %>">Ближайший: <%= daysLabel(nextPay).toLowerCase() %></span><% } %>
+        </div>
+        <div class="mini-stats">
+          <div><span>Оплачено</span><b><%= money(paidTotal + a.down_payment) %></b></div>
+          <div><span>Осталось</span><b><%= money(left) %></b></div>
+          <% if (nextPay) { %><div><span>Следующий платёж</span><b><%= money(nextPay.remaining) %> до <%= date(nextPay.due_date) %></b></div><% } %>
+        </div>
+        <%- include('_schedule') %>
+      </div>
+
+      <%# ---------- оплаты ---------- %>
+      <div class="card" id="payments">
+        <div class="card-head">
+          <h2>Оплаты</h2>
+          <% if (pendingCount) { %><span class="pill draft">На подтверждении: <%= pendingCount %></span><% } %>
+        </div>
+        <% if (records.length) { %>
+          <div class="table-wrap" style="margin-bottom:18px">
+            <table class="table">
+              <thead><tr><th>Дата</th><th class="num">Сумма</th><th>Способ</th><th>Статус</th><th>Внёс</th><% if (isAdmin) { %><th></th><% } %></tr></thead>
+              <tbody>
+                <% for (const r of records) { %>
+                  <tr>
+                    <td class="nowrap"><%= date(r.paid_on) %></td>
+                    <td class="num"><b><%= money(r.amount) %></b></td>
+                    <td><%= METHOD[r.method] %><% if (r.comment) { %><div class="small muted"><%= r.comment %></div><% } %></td>
+                    <td><span class="pill <%= { pending: 'draft', confirmed: 'approved', rejected: 'declined', cancelled: 'cancelled' }[r.status] %>"><%= RECORD_STATUS[r.status] %></span>
+                      <% if (r.decision_comment) { %><div class="small muted"><%= r.decision_comment %></div><% } %></td>
+                    <td class="small"><%= r.u_last ? fioShort({ last_name: r.u_last, first_name: r.u_first, middle_name: r.u_middle }) : (r.method === 'bank' ? 'Выписка' : '—') %></td>
+                    <% if (isAdmin) { %>
+                      <td class="num">
+                        <% if (r.status === 'pending') { %>
+                          <form method="post" action="/admin/records/<%= r.id %>/approve" class="inline-form"><%- hidden %><button class="btn btn-ok btn-sm" type="submit">Подтвердить</button></form>
+                          <form method="post" action="/admin/records/<%= r.id %>/reject" class="inline-form reject-form"><%- hidden %><input class="input input-sm" name="comment" placeholder="Причина" aria-label="Причина отклонения"><button class="btn btn-danger btn-sm" type="submit">Отклонить</button></form>
+                        <% } else if (r.status === 'confirmed') { %>
+                          <form method="post" action="/admin/records/<%= r.id %>/cancel" onsubmit="return confirm('Аннулировать оплату <%= money(r.amount) %>? График будет пересчитан.')"><%- hidden %><button class="link-btn" type="submit">Аннулировать</button></form>
+                        <% } %>
+                      </td>
+                    <% } %>
+                  </tr>
+                <% } %>
+              </tbody>
+            </table>
+          </div>
+        <% } else { %>
+          <p class="muted" style="margin-top:0">Оплат пока не было. Банковские переводы зачитываются из выписки автоматически.</p>
+        <% } %>
+        <% if (a.status === 'signed') { %>
+          <form method="post" action="/app/<%= a.id %>/payments" class="pay-form card soft">
+            <%- hidden %>
+            <h3><%= isAdmin ? 'Внести оплату' : 'Клиент оплатил в магазине' %></h3>
+            <p class="small muted" style="margin:0 0 12px"><%= isAdmin ? 'Оплата сразу учитывается в графике.' : 'Оплата попадёт в график после проверки администратором.' %></p>
+            <div class="grid">
+              <div class="field col-4"><label for="pay_amount">Сумма, ₽</label><input class="input" id="pay_amount" name="amount" inputmode="decimal" value="<%= nextPay ? (nextPay.remaining / 100).toFixed(2).replace(/\.00$/, '') : '' %>"></div>
+              <div class="field col-4"><label for="pay_date">Дата оплаты</label><input class="input" id="pay_date" name="paid_on" type="date" value="<%= today %>" max="<%= today %>"></div>
+              <div class="field col-4"><label for="pay_method">Способ</label>
+                <select class="input" id="pay_method" name="method">
+                  <option value="cash">Наличными в магазине</option><option value="card">Картой в магазине</option>
+                  <% if (isAdmin) { %><option value="bank">Банковский перевод</option><option value="other">Другое</option><% } %>
+                </select></div>
+              <div class="field col-12"><label for="pay_comment">Комментарий</label><input class="input" id="pay_comment" name="comment" placeholder="Например: номер чека, кто принял деньги"></div>
+            </div>
+            <button class="btn btn-dark" type="submit"><%= isAdmin ? 'Внести оплату' : 'Отправить на подтверждение' %></button>
+          </form>
+        <% } %>
+      </div>
+
+      <% if (claims.length) { %>
+        <div class="card">
+          <h2>Претензии</h2>
+          <%- include('_claims_table', { rows: claims.map((c) => ({ ...c, app_id: a.id })), compact: true }) %>
+        </div>
+      <% } %>
+
+      <div class="card">
+        <h2>SMS клиенту</h2>
+        <% if (!notifications.length) { %><p class="muted" style="margin:0">Сообщений пока не было. Напоминание уйдёт за <%= settings.reminderDays %> дн. до платежа.</p><% } else { %>
+          <ul class="sms-log">
+            <% for (const n of notifications) { %>
+              <li><span class="small muted nowrap"><%= dateTime(n.created_at) %></span>
+                <span class="pill <%= n.status === 'error' ? 'declined' : n.status === 'test' ? 'draft' : 'approved' %>"><%= { sent: 'Отправлено', test: 'Тест', error: 'Ошибка' }[n.status] %></span>
+                <span class="small"><%= n.text %></span></li>
+            <% } %>
+          </ul>
+        <% } %>
       </div>
     </div>
+
     <div>
       <% if (qr) { %>
         <div class="card qr-box">
@@ -323,7 +455,21 @@
           <p class="small muted">Отсканируйте в приложении любого банка → «Оплата по QR». Сумма ближайшего платежа подставится автоматически.</p>
         </div>
       <% } %>
-      <% if (docs.length) { %><div class="card soft"><h3>Фото документов</h3><%- include('_docs') %></div><% } %>
+      <div class="card">
+        <h3>Страница оплаты для клиента</h3>
+        <p class="small muted" style="margin-top:0">График, сколько дней до платежа и QR-код. Ссылка уходит клиенту в SMS.</p>
+        <div class="copy-row"><input class="input input-sm" id="pay_url" value="<%= payUrl %>" readonly><button class="btn btn-outline btn-sm" type="button" data-copy="#pay_url">Копировать</button></div>
+      </div>
+      <div class="card">
+        <h3>Документы</h3>
+        <ul class="docs-list">
+          <li><a href="/app/<%= a.id %>/contract" target="_blank"><%- include('../partials/icon', { icon: 'doc' }) %>Договор рассрочки</a></li>
+          <li><a href="/app/<%= a.id %>/contract#schedule" target="_blank"><%- include('../partials/icon', { icon: 'doc' }) %>График и реквизиты</a></li>
+          <li><a href="/app/<%= a.id %>/consent" target="_blank"><%- include('../partials/icon', { icon: 'doc' }) %>Согласие на обработку ПД</a></li>
+        </ul>
+        <a class="btn btn-dark btn-block" style="margin-top:16px" href="/app/<%= a.id %>/contract?print=1" target="_blank"><%- include('../partials/icon', { icon: 'print' }) %>Распечатать договор</a>
+      </div>
+      <% if (docs.some((d) => d.kind !== 'contract_page')) { %><div class="card soft"><h3>Фото документов</h3><%- include('_docs') %></div><% } %>
       <div class="card soft">
         <h3>Реквизиты для оплаты</h3>
         <%- include('_requisites') %>

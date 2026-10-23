@@ -11,7 +11,10 @@
   <a class="stat" href="/admin/sellers?status=approved"><div class="label">Активные продавцы</div><div class="value"><%= stats.sellers %></div><div class="extra">ИП в работе: <%= stats.ips %></div></a>
   <a class="stat" href="/app/search?status=signed"><div class="label">Оформлено рассрочек</div><div class="value"><%= stats.signed.c %></div><div class="extra">на <%= money(stats.signed.s) %></div></a>
   <a class="stat" href="/app/search?status=signed"><div class="label">За этот месяц</div><div class="value"><%= stats.month.c %></div><div class="extra">на <%= money(stats.month.s) %></div></a>
-  <div class="stat"><div class="label">Просроченные платежи</div><div class="value" style="<%= stats.overdue.c ? 'color:var(--err)' : '' %>"><%= stats.overdue.c %></div><div class="extra">на <%= money(stats.overdue.s) %></div></div>
+  <a class="stat" href="/app/payments?f=overdue"><div class="label">Просроченные платежи</div><div class="value" style="<%= stats.overdue.c ? 'color:var(--err)' : '' %>"><%= stats.overdue.c %></div><div class="extra">на <%= money(stats.overdue.s) %></div></a>
+  <a class="stat<%= stats.records.c ? ' accent' : '' %>" href="/app/payments#pending"><div class="label">Оплаты в магазине на проверке</div><div class="value"><%= stats.records.c %></div><div class="extra">на <%= money(stats.records.s) %></div></a>
+  <a class="stat" href="/app/claims"><div class="label">Претензии к вручению</div><div class="value" style="<%= stats.claims.c ? 'color:var(--err)' : '' %>"><%= stats.claims.c %></div><div class="extra">долг <%= money(stats.claims.s) %></div></a>
+  <a class="stat" href="/app/search?status=signed"><div class="label">Без скана договора</div><div class="value"><%= stats.noScan %></div><div class="extra">оформленные рассрочки</div></a>
 </div>
 
 <div class="two-col" style="grid-template-columns:minmax(0,1fr) minmax(0,1fr)">

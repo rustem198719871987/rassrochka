@@ -1,0 +1,67 @@
+<%- include('../partials/shell_start') %>
+<% const PILL = { overdue: 'declined', today: 'correction', soon: 'draft', upcoming: '' };
+   const isAdmin = user.role === 'admin'; %>
+<div class="page-head">
+  <div>
+    <h1>Платежи клиентов</h1>
+    <div class="sub">Сколько дней осталось до платежа и у кого просрочка. Напоминание по SMS уходит клиенту за <%= settings.reminderDays %> дн.</div>
+  </div>
+  <% if (isAdmin) { %><a class="btn btn-primary" href="/admin/statements">Загрузить выписку банка</a><% } %>
+</div>
+
+<% if (pending.length) { %>
+  <div class="card <%= isAdmin ? 'yellow' : 'soft' %>" id="pending">
+    <h2><%= isAdmin ? 'Оплаты в магазине — проверьте и подтвердите' : 'Ждут подтверждения администратора' %></h2>
+    <div class="table-wrap" style="background:var(--white)">
+      <table class="table">
+        <thead><tr><th>Договор</th><th>Клиент</th><th>Дата</th><th class="num">Сумма</th><th>Способ</th><th>Внёс</th><% if (isAdmin) { %><th></th><% } %></tr></thead>
+        <tbody>
+          <% for (const r of pending) { %>
+            <tr>
+              <td class="nowrap"><a href="/app/<%= r.application_id %>#payments"><b><%= r.number %></b></a></td>
+              <td><%= fio(r) %><% if (r.comment) { %><div class="small muted"><%= r.comment %></div><% } %></td>
+              <td class="nowrap"><%= date(r.paid_on) %></td>
+              <td class="num"><b><%= money(r.amount) %></b></td>
+              <td><%= METHOD[r.method] %></td>
+              <td class="small"><%= fioShort({ last_name: r.s_last, first_name: r.s_first, middle_name: r.s_middle }) %></td>
+              <% if (isAdmin) { %>
+                <td class="actions-cell">
+                  <div class="row-actions">
+                    <form method="post" action="/admin/records/<%= r.id %>/approve"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="payments"><button class="btn btn-ok btn-sm" type="submit">Подтвердить</button></form>
+                    <form method="post" action="/admin/records/<%= r.id %>/reject" class="reject-form"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="payments"><input class="input input-sm" name="comment" placeholder="Причина" aria-label="Причина отклонения"><button class="btn btn-danger btn-sm" type="submit">Отклонить</button></form>
+                  </div>
+                </td>
+              <% } %>
+            </tr>
+          <% } %>
+        </tbody>
+      </table>
+    </div>
+  </div>
+<% } %>
+
+<div class="filters">
+  <% for (const [k, v] of Object.entries(PAY_FILTERS)) { %>
+    <a href="/app/payments?f=<%= k %>" class="<%= filter === k ? 'active' : '' %>"><%= v %> <span class="count"><%= counts[k] %></span></a>
+  <% } %>
+</div>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Срок</th><th>Дата</th><th>Клиент</th><th>Договор</th><th class="num">К оплате</th><th>Напоминание</th></tr></thead>
+    <tbody>
+      <% if (!rows.length) { %><tr><td colspan="6" class="empty">Платежей нет</td></tr><% } %>
+      <% for (const p of rows) { %>
+        <tr class="link-row" data-href="/app/<%= p.app_id %>#payments">
+          <td><span class="pill <%= PILL[p.state] %>"><%= daysLabel(p) %></span></td>
+          <td class="nowrap"><%= date(p.due_date) %><div class="small muted">платёж <%= p.n %></div></td>
+          <td><%= fio(p) %><div class="small muted nowrap"><%= phone(p.phone) %></div></td>
+          <td class="nowrap"><a href="/app/<%= p.app_id %>"><b><%= p.number %></b></a><% if (isAdmin) { %><div class="small muted"><%= p.ip_name %></div><% } %>
+            <% if (p.pending) { %><div><span class="pill draft">оплата на проверке</span></div><% } %></td>
+          <td class="num"><b><%= money(p.remaining) %></b><% if (p.partial) { %><div class="small muted">из <%= money(p.amount) %></div><% } %></td>
+          <td class="small"><%= p.reminded_at ? 'SMS ' + date(p.reminded_at) : (p.daysLeft > settings.reminderDays ? 'за ' + settings.reminderDays + ' дн.' : '—') %></td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/shell_end') %>

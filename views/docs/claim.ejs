@@ -1,0 +1,65 @@
+<%- include('_head') %>
+<%
+  const pct = String(a.penalty_percent).replace('.', ',');
+  const toPay = c.overdue_amount + c.penalty;
+  const lessThanHalf = paidTotal <= a.total_amount / 2;
+%>
+<div class="meta" style="margin-top:0">
+  <div style="max-width:48%">
+    <b>От:</b> <%= ip.full_name %><br>ИНН <%= ip.inn %>, ОГРНИП <%= ip.ogrnip %><br><%= ip.address %><% if (ip.phone) { %><br>Тел.: <%= phone(ip.phone) %><% } %>
+  </div>
+  <div style="max-width:48%">
+    <b>Кому:</b> <%= fio(a) %><br><%= a.reg_address %><% if (a.fact_address && a.fact_address !== a.reg_address) { %><br>Адрес проживания: <%= a.fact_address %><% } %><br>Тел.: <%= phone(a.phone) %>
+  </div>
+</div>
+
+<h1>Претензия № <%= c.number %></h1>
+<p class="center">о погашении задолженности по договору купли-продажи товара в рассрочку<br>№ <%= a.number %> от <%= date(a.contract_signed_at) %></p>
+<div class="meta"><span>г. ____________________</span><span><%= date(c.created_at) %></span></div>
+
+<p><%= date(a.contract_signed_at) %> между <%= ip.full_name %> (далее — «Продавец») и Вами (далее — «Покупатель») заключён договор
+купли-продажи товара в рассрочку № <%= a.number %>. По договору Вам передан товар: <b><%= a.product_name %></b>. Цена товара в рассрочку —
+<%= money(a.total_amount) %>. Покупатель обязался вносить платежи в соответствии с Графиком платежей (Приложение № 1 к договору).</p>
+
+<p>По состоянию на <%= date(details.asOf) %> обязательства по оплате не исполнены. Не оплачены следующие платежи:</p>
+<table>
+  <tr><th>№</th><th>Срок оплаты</th><th class="num">Сумма платежа</th><th class="num">Не оплачено</th><th class="num">Дней просрочки</th><th class="num">Неустойка (<%= pct %>% в день)</th></tr>
+  <% for (const r of details.rows) { %>
+    <tr><td><%= r.n %></td><td><%= date(r.due_date) %></td><td class="num"><%= money(r.amount) %></td><td class="num"><%= money(r.remaining) %></td><td class="num"><%= r.days %></td><td class="num"><%= money(r.penalty) %></td></tr>
+  <% } %>
+  <tr><th></th><th colspan="2">Итого</th><th class="num"><%= money(c.overdue_amount) %></th><th></th><th class="num"><%= money(c.penalty) %></th></tr>
+</table>
+<p>Всего по договору Вами оплачено <%= money(paidTotal) %> из <%= money(a.total_amount) %>.</p>
+
+<p>На основании статей 309, 310, 486, 488 Гражданского кодекса РФ и пункта 4.1 договора <b>требуем</b> в течение <b>10 (десяти) календарных дней</b>
+с момента получения настоящей претензии погасить просроченную задолженность в размере <b><%= money(c.overdue_amount) %></b> и уплатить неустойку
+в размере <b><%= money(c.penalty) %></b>, всего <b><%= money(toPay) %></b>.</p>
+
+<p>В случае неисполнения требования Продавец обратится в суд с иском о взыскании задолженности, неустойки и судебных расходов<%= lessThanHalf ? ', а также вправе отказаться от исполнения договора и потребовать возврата проданного товара (п. 2 ст. 489 ГК РФ)' : '' %>.
+Сведения о неисполнении обязательств могут быть внесены во внутренний стоп-лист Продавца (п. 4.3 договора).</p>
+
+<h2>Реквизиты для оплаты</h2>
+<table>
+  <tr><th style="width:38%">Получатель</th><td><%= ip.full_name %></td></tr>
+  <tr><th>ИНН</th><td><%= ip.inn %></td></tr>
+  <tr><th>Расчётный счёт</th><td><%= ip.account %></td></tr>
+  <tr><th>Банк</th><td><%= ip.bank_name %>, БИК <%= ip.bik %>, к/с <%= ip.corr_account %></td></tr>
+  <tr><th>Назначение платежа</th><td>Погашение задолженности по договору рассрочки <%= a.number %>, <%= fio(a) %></td></tr>
+</table>
+<div class="qr">
+  <img src="<%= qr %>" alt="QR-код для оплаты">
+  <div><b>Оплата по QR-коду</b><br>В приложении банка выберите «Оплата по QR» — реквизиты и сумма задолженности <%= money(c.overdue_amount) %> подставятся автоматически. Неустойку можно оплатить отдельным платежом по тем же реквизитам. Оплатить также можно наличными в магазине.</div>
+</div>
+
+<div class="sign">
+  <div>
+    <b>Продавец</b><br><%= ip.full_name %>
+    <div class="line"></div><span class="muted">подпись / М. П.</span>
+  </div>
+  <div>
+    <b>Претензию получил(а)</b><br><%= fio(a) %>
+    <div class="line"></div><span class="muted">подпись / расшифровка</span>
+    <p style="margin-top:12px">«____» ______________ 20___ г.</p>
+  </div>
+</div>
+<%- include('_foot') %>

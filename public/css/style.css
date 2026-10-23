@@ -242,6 +242,37 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .doc-thumb { display: flex; flex-direction: column; gap: 6px; width: 140px; text-decoration: none; font-size: 12.5px; font-weight: 600; color: var(--ink); }
 .doc-thumb img { width: 140px; height: 100px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
 
+/* ---------- карточка рассрочки: скан, оплаты, SMS ---------- */
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+.card-head h2 { margin: 0; }
+.scan-pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; margin-bottom: 16px; }
+.scan-page { display: grid; gap: 4px; font-size: 12.5px; }
+.scan-page img, .pdf-tile { width: 100%; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); display: grid; place-items: center; font-weight: 800; color: var(--err); }
+.scan-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.file-form { margin: 0; }
+.file-form label { cursor: pointer; }
+.link-btn { background: none; border: 0; padding: 0; font: inherit; font-size: 12.5px; font-weight: 700; color: var(--err); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+.mini-stats { display: flex; gap: 10px 28px; flex-wrap: wrap; margin-bottom: 14px; }
+.mini-stats div { display: grid; }
+.mini-stats span { font-size: 12.5px; color: var(--muted); }
+.mini-stats b { font-size: 17px; font-variant-numeric: tabular-nums; }
+.actions-cell { min-width: 220px; }
+.row-actions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+.row-actions form, .inline-form { margin: 0; display: inline-flex; gap: 6px; align-items: center; }
+.reject-form .input-sm { width: 130px; }
+.input-sm { font-size: 13.5px; padding: 6px 2px; }
+.pay-form { margin: 0; }
+.pay-form h3 { margin-bottom: 4px; }
+.sms-log { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.sms-log li { display: grid; grid-template-columns: auto auto 1fr; gap: 10px; align-items: start; }
+.copy-row { display: flex; gap: 8px; align-items: center; }
+.copy-row .input { min-width: 0; flex: 1; }
+.drop { display: flex; align-items: center; gap: 12px; border: 2px dashed #c9c9cf; border-radius: 14px; padding: 22px; cursor: pointer; font-weight: 700; }
+.drop svg { width: 24px; height: 24px; flex: none; }
+.drop input { display: none; }
+.filters .count { opacity: .65; margin-left: 4px; font-variant-numeric: tabular-nums; }
+.card.yellow .table th { background: var(--yellow-soft); }
+
 /* ---------- адаптив ---------- */
 @media (max-width: 1100px) {
   .two-col, .success { grid-template-columns: 1fr; }
@@ -267,6 +298,7 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .auth-header .help { display: none; }
   .auth-card { padding: 24px 20px 28px; border-radius: 20px; }
   .kv { grid-template-columns: 1fr; gap: 2px; }
+  .sms-log li { grid-template-columns: 1fr; gap: 4px; }
   .kv dd { margin-bottom: 8px; }
   h1 { font-size: 23px; }
   .stepper .bar { width: 14px; margin: 0 6px; }

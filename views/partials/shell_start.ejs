@@ -5,6 +5,9 @@
      ['/admin/sellers', 'Продавцы', 'users', path.startsWith('/admin/sellers'), pendingSellers],
      ['/admin/ips', 'ИП и реквизиты', 'bank', path.startsWith('/admin/ips')],
      ['/app/search', 'Рассрочки', 'list', path === '/app/search' || /^\/app\/\d/.test(path)],
+     ['/app/payments', 'Платежи', 'wallet', path === '/app/payments', locals.badgePayments],
+     ['/admin/statements', 'Выписки банка', 'bank-doc', path.startsWith('/admin/statements')],
+     ['/app/claims', 'Претензии', 'alert', path.startsWith('/app/claims'), locals.badgeClaims],
      null,
      ['/app/new', 'Создать заявку', 'plus', path === '/app/new'],
      ['/app/calculator', 'Калькулятор', 'calc', path === '/app/calculator'],
@@ -15,6 +18,8 @@
      ['/app/new', 'Создать заявку', 'plus', path === '/app/new' || /^\/app\/\d/.test(path)],
      ['/app/calculator', 'Калькулятор', 'calc', path === '/app/calculator'],
      ['/app/search', 'Поиск', 'search', path === '/app/search'],
+     ['/app/payments', 'Платежи', 'wallet', path === '/app/payments', locals.badgePayments],
+     ['/app/claims', 'Претензии', 'alert', path.startsWith('/app/claims'), locals.badgeClaims],
    ]; %>
 <div class="shell">
   <aside class="sidebar no-print">

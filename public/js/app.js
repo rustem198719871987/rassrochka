@@ -136,6 +136,49 @@
     });
   }
 
+  // ---------- скан подписанного договора с телефона ----------
+  var cscan = document.querySelector('[data-contract-scan]');
+  if (cscan) {
+    var card = cscan.closest('.card');
+    var cbody = card.querySelector('[data-scan-body]');
+    var cstatus = card.querySelector('[data-scan-status]');
+    var ctimer = null;
+    cscan.querySelector('[data-scan-start]').addEventListener('click', function () {
+      var btn = this;
+      btn.disabled = true;
+      fetch('/app/' + cscan.dataset.app + '/contract-scan', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: '_csrf=' + encodeURIComponent(cscan.dataset.csrf),
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        btn.disabled = false;
+        if (d.error) { cstatus.textContent = d.error; cbody.hidden = false; return; }
+        card.querySelector('[data-scan-qr]').src = d.qr;
+        card.querySelector('[data-scan-link]').href = d.url;
+        cbody.hidden = false;
+        clearInterval(ctimer);
+        ctimer = setInterval(function () {
+          fetch('/app/' + cscan.dataset.app + '/scan/' + d.id, { credentials: 'same-origin' })
+            .then(function (r) { return r.json(); })
+            .then(function (st) {
+              if (st.status === 'done') { clearInterval(ctimer); cstatus.textContent = 'Страницы получены, обновляем…'; location.hash = 'contract-scan'; location.reload(); }
+              if (st.status === 'expired') { clearInterval(ctimer); cstatus.textContent = 'Время ожидания истекло. Нажмите кнопку ещё раз.'; }
+            }).catch(function () {});
+        }, 2500);
+      }).catch(function () { btn.disabled = false; });
+    });
+  }
+
+  // ---------- копирование ссылки ----------
+  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var el = document.querySelector(btn.dataset.copy);
+      var done = function () { btn.textContent = 'Скопировано'; setTimeout(function () { btn.textContent = 'Копировать'; }, 2000); };
+      if (navigator.clipboard) navigator.clipboard.writeText(el.value).then(done, function () { el.select(); });
+      else { el.select(); document.execCommand('copy'); done(); }
+    });
+  });
+
   // ---------- живой расчёт рассрочки ----------
   var form = document.querySelector('[data-calc-form]');
   if (!form || !window.Calc) return;

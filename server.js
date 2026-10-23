@@ -5,6 +5,8 @@ const session = require('express-session');
 const { db, getSettings, getSessionSecret, ensureAdmin } = require('./lib/db');
 const u = require('./lib/util');
 const sms = require('./lib/sms');
+const payments = require('./lib/payments');
+const jobs = require('./lib/jobs');
 
 ensureAdmin();
 
@@ -28,6 +30,8 @@ app.use((req, res, next) => {
 
 // Страница загрузки фото с телефона: вход по одноразовой ссылке, без сессии и CSRF
 app.use('/m', require('./routes/mobile'));
+// Страница оплаты для клиента по ссылке из SMS
+app.use('/pay', require('./routes/pay'));
 
 app.use(session({
   store: new u.SqliteStore(),
@@ -63,6 +67,13 @@ app.use((req, res, next) => {
   });
   if (req.user && req.user.role === 'admin') {
     res.locals.pendingSellers = db.prepare("SELECT count(*) AS c FROM users WHERE role='seller' AND status='pending'").get().c;
+    res.locals.badgePayments = db.prepare("SELECT count(*) AS c FROM payment_records WHERE status = 'pending'").get().c;
+    res.locals.badgeClaims = db.prepare("SELECT count(*) AS c FROM claims WHERE status = 'new'").get().c;
+  } else if (req.user && req.user.status === 'approved') {
+    res.locals.badgePayments = db.prepare(`SELECT count(*) AS c FROM payments p JOIN applications a ON a.id = p.application_id
+      WHERE a.seller_id = ? AND a.status = 'signed' AND p.paid_amount < p.amount AND p.due_date < ?`).get(req.user.id, payments.today()).c;
+    res.locals.badgeClaims = db.prepare(`SELECT count(*) AS c FROM claims c JOIN applications a ON a.id = c.application_id
+      WHERE a.seller_id = ? AND c.status = 'new'`).get(req.user.id).c;
   }
   next();
 });
@@ -80,4 +91,7 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = Number(process.env.PORT) || 3000;
-app.listen(PORT, () => console.log(`Рассрочка.Топ запущена: http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`Рассрочка.Топ запущена: http://localhost:${PORT}`);
+  if (process.env.JOBS !== 'off') jobs.start();
+});

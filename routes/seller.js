@@ -5,10 +5,13 @@ const Calc = require('../public/js/calc');
 const sms = require('../lib/sms');
 const checks = require('../lib/checks');
 const crypto = require('crypto');
-const path = require('path');
 const QRCode = require('qrcode');
+const multer = require('multer');
 const { paymentQr } = require('../lib/qr');
-const { UPLOAD_DIR } = require('./mobile');
+const storage = require('../lib/storage');
+const payments = require('../lib/payments');
+const { CLAIM_STATUS } = require('../lib/claims');
+const { addContractPages, MAX_PAGES } = require('./mobile');
 
 const router = express.Router();
 router.use(u.requireSeller);
@@ -17,7 +20,10 @@ const EMPLOYMENT = {
   employed: 'Работа по найму', ip: 'Индивидуальный предприниматель', self: 'Самозанятый',
   pensioner: 'Пенсионер', student: 'Студент', other: 'Не работает',
 };
-router.use((req, res, next) => { res.locals.EMPLOYMENT = EMPLOYMENT; next(); });
+router.use((req, res, next) => {
+  Object.assign(res.locals, { EMPLOYMENT, METHOD: payments.METHOD, RECORD_STATUS: payments.RECORD_STATUS, CLAIM_STATUS, daysLabel: payments.daysLabel });
+  next();
+});
 
 const STEPS = ['Товар', 'Анкета', 'SMS и согласие', 'Проверка', 'Договор'];
 
@@ -79,8 +85,9 @@ router.post('/new', (req, res) => {
   }
   const id = db.transaction(() => {
     const info = db.prepare(`INSERT INTO applications (seller_id, entrepreneur_id, product_name, product_price, down_payment, months,
-        markup_percent, markup_amount, total_amount, financed_amount, monthly_payment)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(req.user.id, ...productValues(p));
+        markup_percent, markup_amount, total_amount, financed_amount, monthly_payment, pay_token, penalty_percent)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(req.user.id, ...productValues(p), crypto.randomBytes(18).toString('hex'), getSettings().penaltyPercent);
     const yy = String(new Date().getFullYear()).slice(2);
     db.prepare('UPDATE applications SET number = ? WHERE id = ?')
       .run(`РТ-${yy}-${String(info.lastInsertRowid).padStart(6, '0')}`, info.lastInsertRowid);
@@ -116,11 +123,82 @@ router.get('/search', (req, res) => {
     where.push('(' + or.join(' OR ') + ')');
   }
   const rows = db.prepare(`
-    SELECT a.*, e.name AS ip_name, s.last_name AS s_last, s.first_name AS s_first, s.middle_name AS s_middle
+    SELECT a.*, e.name AS ip_name, s.last_name AS s_last, s.first_name AS s_first, s.middle_name AS s_middle,
+      (SELECT count(*) FROM documents d WHERE d.application_id = a.id AND d.kind = 'contract_page') AS scan_pages,
+      (SELECT count(*) FROM payments p WHERE p.application_id = a.id AND p.paid_amount < p.amount AND p.due_date < date('now')) AS overdue
     FROM applications a JOIN entrepreneurs e ON e.id = a.entrepreneur_id JOIN users s ON s.id = a.seller_id
     ${where.length ? 'WHERE ' + where.join(' AND ') : ''}
     ORDER BY a.id DESC LIMIT 200`).all(...params);
   res.render('seller/search', { title: req.user.role === 'admin' ? 'Рассрочки' : 'Поиск', q, status, rows });
+});
+
+// ---------- платежи: сроки, просрочки, оплаты на подтверждении ----------
+const PAY_FILTERS = { all: 'Все неоплаченные', overdue: 'Просроченные', week: 'Ближайшие 7 дней', month: 'Ближайшие 30 дней' };
+
+router.get('/payments', (req, res) => {
+  const filter = PAY_FILTERS[req.query.f] ? req.query.f : 'all';
+  const sellerId = req.user.role === 'admin' ? null : req.user.id;
+  const rows = payments.upcoming({ sellerId, filter: filter === 'all' ? null : filter });
+  const pending = db.prepare(`
+    SELECT r.*, a.number, a.last_name, a.first_name, a.middle_name, u.last_name AS s_last, u.first_name AS s_first, u.middle_name AS s_middle
+    FROM payment_records r JOIN applications a ON a.id = r.application_id LEFT JOIN users u ON u.id = r.created_by
+    WHERE r.status = 'pending' ${sellerId ? 'AND a.seller_id = ?' : ''} ORDER BY r.id`).all(...(sellerId ? [sellerId] : []));
+  const counts = {};
+  for (const f of Object.keys(PAY_FILTERS)) counts[f] = payments.upcoming({ sellerId, filter: f === 'all' ? null : f }).length;
+  res.render('seller/payments', { title: 'Платежи', rows, pending, filter, PAY_FILTERS, counts, today: payments.today() });
+});
+
+// ---------- претензии ----------
+router.get('/claims', (req, res) => {
+  const sellerId = req.user.role === 'admin' ? null : req.user.id;
+  const status = CLAIM_STATUS[req.query.status] ? req.query.status : '';
+  const where = [];
+  const params = [];
+  if (sellerId) { where.push('a.seller_id = ?'); params.push(sellerId); }
+  if (status) { where.push('c.status = ?'); params.push(status); }
+  else where.push("c.status <> 'closed'");
+  const rows = db.prepare(`
+    SELECT c.*, a.number AS app_number, a.id AS app_id, a.last_name, a.first_name, a.middle_name, a.phone, e.name AS ip_name
+    FROM claims c JOIN applications a ON a.id = c.application_id JOIN entrepreneurs e ON e.id = a.entrepreneur_id
+    WHERE ${where.join(' AND ')} ORDER BY CASE c.status WHEN 'new' THEN 0 WHEN 'handed' THEN 1 ELSE 2 END, c.id DESC`).all(...params);
+  res.render('seller/claims', { title: 'Претензии', rows, status });
+});
+
+function loadClaim(req, res) {
+  const c = db.prepare('SELECT * FROM claims WHERE id = ?').get(Number(req.params.cid));
+  const a = c && db.prepare('SELECT * FROM applications WHERE id = ?').get(c.application_id);
+  if (!c || (req.user.role !== 'admin' && a.seller_id !== req.user.id)) {
+    res.status(404).render('error', { title: 'Не найдено', message: 'Претензия не найдена.' });
+    return null;
+  }
+  return { c, a };
+}
+
+router.get('/claims/:cid', async (req, res) => {
+  const found = loadClaim(req, res);
+  if (!found) return;
+  const { c, a } = found;
+  const ip = db.prepare('SELECT * FROM entrepreneurs WHERE id = ?').get(a.entrepreneur_id);
+  const details = JSON.parse(c.details);
+  const qr = await paymentQr(ip, { sum: c.overdue_amount, purpose: `Погашение задолженности по договору рассрочки ${a.number}`, payer: a });
+  const paidTotal = db.prepare('SELECT coalesce(sum(paid_amount), 0) s FROM payments WHERE application_id = ?').get(a.id).s + a.down_payment;
+  res.render('docs/claim', { title: `Претензия ${c.number}`, c, a, ip, details, qr, paidTotal, backUrl: `/app/${a.id}` });
+});
+
+router.post('/claims/:cid/handed', (req, res) => {
+  const found = loadClaim(req, res);
+  if (!found) return;
+  db.prepare("UPDATE claims SET status = 'handed', handed_at = datetime('now'), handed_by = ? WHERE id = ? AND status = 'new'").run(req.user.id, found.c.id);
+  u.flash(req, 'ok', 'Отмечено: претензия передана руководителю магазина');
+  res.redirect(req.body.back === 'list' ? '/app/claims' : `/app/${found.a.id}`);
+});
+
+router.post('/claims/:cid/delivered', (req, res) => {
+  const found = loadClaim(req, res);
+  if (!found) return;
+  db.prepare("UPDATE claims SET status = 'delivered', delivered_at = datetime('now'), delivered_by = ? WHERE id = ? AND status IN ('new','handed')").run(req.user.id, found.c.id);
+  u.flash(req, 'ok', 'Отмечено: претензия вручена клиенту');
+  res.redirect(req.body.back === 'list' ? '/app/claims' : `/app/${found.a.id}`);
 });
 
 // ---------- карточка заявки ----------
@@ -150,18 +228,30 @@ router.get('/:id', async (req, res) => {
   if (a.status === 'signed' || a.status === 'closed') step = 6; // финальный экран
 
   const seller = db.prepare('SELECT * FROM users WHERE id = ?').get(a.seller_id);
-  const schedule = scheduleFor(a);
-  const next = schedule.find((p) => !p.paid_at);
+  const t = payments.today();
+  const schedule = scheduleFor(a).map((p) => (p.id ? payments.paymentState(p, t) : p));
+  const next = schedule.find((p) => p.id ? p.remaining > 0 : !p.paid_at);
   const qr = (step >= 5 && req.ip_)
     ? await paymentQr(req.ip_, {
-      sum: next ? next.amount : a.monthly_payment,
+      sum: next ? (next.remaining || next.amount) : a.monthly_payment,
       purpose: `Оплата по договору рассрочки ${a.number}`,
       payer: a,
     })
     : null;
 
+  const after = step === 6 ? {
+    records: db.prepare(`SELECT r.*, u.last_name AS u_last, u.first_name AS u_first, u.middle_name AS u_middle
+      FROM payment_records r LEFT JOIN users u ON u.id = r.created_by WHERE r.application_id = ? ORDER BY r.paid_on DESC, r.id DESC`).all(a.id),
+    notifications: db.prepare('SELECT * FROM notifications WHERE application_id = ? ORDER BY id DESC LIMIT 20').all(a.id),
+    claims: db.prepare('SELECT * FROM claims WHERE application_id = ? ORDER BY id DESC').all(a.id),
+    debt: payments.debt(a.id, t),
+    payUrl: `${u.publicBase(req)}/pay/${a.pay_token}`,
+    paidTotal: schedule.reduce((sum, p) => sum + (p.paid_amount || 0), 0),
+    today: t,
+  } : {};
   res.render('seller/application', {
-    title: `Заявка ${a.number}`, a, ip: req.ip_, seller, steps: STEPS, step, done,
+    title: `Заявка ${a.number}`, a, ip: req.ip_, seller, steps: STEPS, step, done, ...after,
+    contractPages: res.locals.docs.filter((d) => d.kind === 'contract_page'),
     ips: availableIps(req.user), schedule, qr, editable: editable(a),
     checkResult: a.check_result ? JSON.parse(a.check_result) : null,
     fsspConfigured: checks.fsspConfigured(), fsspUrl: checks.FSSP_MANUAL_URL,
@@ -332,7 +422,10 @@ router.post('/:id/sign', (req, res) => {
                 first_payment_date = ?, updated_at = datetime('now') WHERE id = ?`).run(req.ip, u.isoDate(sched[0].date), a.id);
   })();
   req.session.devCode = null;
-  sms.notify(a.phone, `Рассрочка ${a.number} оформлена: ${a.months} мес, платёж ${u.moneyFmt(a.monthly_payment).replace('\u00a0', ' ')}, первый до ${u.dateFmt(u.isoDate(sched[0].date))}. ${req.ip_.name}`);
+  sms.notify({
+    applicationId: a.id, kind: 'signed', phone: a.phone,
+    text: `Рассрочка ${a.number} оформлена: ${a.months} мес, платёж ${u.moneyFmt(a.monthly_payment).replace('\u00a0', ' ')}, первый до ${u.dateFmt(u.isoDate(sched[0].date))}. График и оплата: ${u.publicBase(req)}/pay/${a.pay_token}`,
+  });
   res.redirect(`/app/${a.id}`);
 });
 
@@ -348,19 +441,61 @@ router.post('/:id/cancel', (req, res) => {
 // ---------- фото документов с телефона по QR-коду ----------
 const SCAN_TTL_MS = 30 * 60 * 1000;
 
-function publicBase(req) {
-  return (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
-}
-
-router.post('/:id/scan', async (req, res) => {
-  const a = req.app_;
-  if (!editable(a)) return res.status(409).json({ error: 'Заявка закрыта для изменений' });
+async function scanSession(req, res, purpose) {
   const token = crypto.randomBytes(24).toString('base64url');
-  const info = db.prepare(`INSERT INTO scan_sessions (token, application_id, created_by, expires_at, created_at)
-                           VALUES (?, ?, ?, ?, ?)`).run(token, a.id, req.user.id, Date.now() + SCAN_TTL_MS, Date.now());
-  const url = `${publicBase(req)}/m/${token}`;
+  const info = db.prepare(`INSERT INTO scan_sessions (token, application_id, created_by, expires_at, created_at, purpose)
+                           VALUES (?, ?, ?, ?, ?, ?)`).run(token, req.app_.id, req.user.id, Date.now() + SCAN_TTL_MS, Date.now(), purpose);
+  const url = `${u.publicBase(req)}/m/${token}`;
   const qr = await QRCode.toDataURL(url, { errorCorrectionLevel: 'M', margin: 1, width: 260 });
   res.json({ id: info.lastInsertRowid, url, qr });
+}
+
+router.post('/:id/scan', (req, res) => {
+  if (!editable(req.app_)) return res.status(409).json({ error: 'Заявка закрыта для изменений' });
+  return scanSession(req, res, 'passport');
+});
+
+const isSigned = (a) => a.status === 'signed' || a.status === 'closed';
+
+router.post('/:id/contract-scan', (req, res) => {
+  if (!isSigned(req.app_)) return res.status(409).json({ error: 'Скан загружается после подписания договора' });
+  return scanSession(req, res, 'contract');
+});
+
+// загрузка скана с компьютера: фото или PDF
+const deskUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024, files: MAX_PAGES } });
+router.post('/:id/contract-files', (req, res, next) => {
+  deskUpload.array('files', MAX_PAGES)(req, res, (err) => {
+    if (err) { u.flash(req, 'error', err.code === 'LIMIT_FILE_SIZE' ? 'Файл больше 20 МБ' : 'Ошибка загрузки файла'); return res.redirect(`/app/${req.app_.id}#contract-scan`); }
+    const a = req.app_;
+    const files = req.files || [];
+    if (!isSigned(a) || !files.length) { u.flash(req, 'error', 'Выберите файлы скана договора'); return res.redirect(`/app/${a.id}#contract-scan`); }
+    if (files.some((f) => !storage.fileType(f.buffer))) { u.flash(req, 'error', 'Поддерживаются только JPEG, PNG и PDF'); return res.redirect(`/app/${a.id}#contract-scan`); }
+    addContractPages(a.id, files.map((f) => f.buffer), req.user.id);
+    u.flash(req, 'ok', `Загружено файлов: ${files.length}`);
+    res.redirect(`/app/${a.id}#contract-scan`);
+  });
+});
+
+// ---------- оплаты ----------
+router.post('/:id/payments', (req, res) => {
+  const a = req.app_;
+  const amount = u.rubToKop(req.body.amount);
+  const paidOn = u.isValidDate(req.body.paid_on) ? req.body.paid_on : null;
+  const method = ['cash', 'card', 'other', 'bank'].includes(req.body.method) ? req.body.method : 'cash';
+  const isAdmin = req.user.role === 'admin';
+  if (!isSigned(a)) u.flash(req, 'error', 'Оплаты принимаются только по оформленной рассрочке');
+  else if (!(amount > 0)) u.flash(req, 'error', 'Укажите сумму оплаты');
+  else if (!paidOn || paidOn > payments.today()) u.flash(req, 'error', 'Укажите дату оплаты (не позже сегодняшней)');
+  else if (!isAdmin && method === 'bank') u.flash(req, 'error', 'Банковские переводы зачитываются из выписки');
+  else {
+    payments.addRecord({
+      applicationId: a.id, amount, paidOn, method, status: isAdmin ? 'confirmed' : 'pending',
+      comment: u.str(req.body.comment, 500), userId: req.user.id,
+    });
+    u.flash(req, 'ok', isAdmin ? 'Оплата внесена и учтена в графике' : 'Оплата отправлена администратору на подтверждение. В графике она появится после проверки.');
+  }
+  res.redirect(`/app/${a.id}#payments`);
 });
 
 router.get('/:id/scan/:sid', (req, res) => {
@@ -378,8 +513,17 @@ router.get('/:id/scan/:sid', (req, res) => {
 router.get('/:id/docs/:docId', (req, res) => {
   const d = res.locals.docs.find((x) => x.id === Number(req.params.docId));
   if (!d) return res.status(404).end();
-  res.set({ 'Cache-Control': 'private, no-store', 'Content-Type': d.mime });
-  res.sendFile(path.join(UPLOAD_DIR, d.file));
+  let body;
+  try { body = storage.read(d.file); } catch (e) { console.error('Файл не прочитан:', d.file, e.message); return res.status(500).end(); }
+  // имя файла с кириллицей передаётся по RFC 5987, латинское — для старых браузеров
+  const ext = d.mime === 'application/pdf' ? 'pdf' : d.mime === 'image/png' ? 'png' : 'jpg';
+  const name = `${req.app_.number}-${d.kind}${d.page ? '-' + d.page : ''}.${ext}`;
+  res.set({
+    'Cache-Control': 'private, no-store',
+    'Content-Type': d.mime,
+    'Content-Disposition': `inline; filename="${d.kind}${d.page ? '-' + d.page : ''}.${ext}"; filename*=UTF-8''${encodeURIComponent(name)}`,
+  });
+  res.send(body);
 });
 
 // ---------- документы для печати ----------

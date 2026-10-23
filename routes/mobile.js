@@ -1,16 +1,15 @@
-// Страница для телефона продавца: открывается по QR-коду из анкеты, без входа в кабинет.
+// Страница для телефона продавца: открывается по QR-коду с компьютера, без входа в кабинет.
 // Доступ даёт одноразовый токен в ссылке (действует 30 минут).
-const fs = require('fs');
-const path = require('path');
-const crypto = require('crypto');
+// Два режима: фото паспорта для анкеты и постраничная съёмка подписанного договора.
 const express = require('express');
 const multer = require('multer');
-const { db, DATA_DIR, getSettings } = require('../lib/db');
+const { db, getSettings } = require('../lib/db');
+const storage = require('../lib/storage');
 const ocr = require('../lib/ocr');
 
 const router = express.Router();
-const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
-const KINDS = ['passport_main', 'passport_reg', 'client_photo'];
+const PASSPORT_KINDS = ['passport_main', 'passport_reg', 'client_photo'];
+const MAX_PAGES = 30;
 
 router.use((req, res, next) => {
   res.locals.settings = getSettings();
@@ -20,14 +19,8 @@ router.use((req, res, next) => {
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 12 * 1024 * 1024, files: 3 },
+  limits: { fileSize: 12 * 1024 * 1024, files: MAX_PAGES + 3 },
 });
-
-function imageType(buf) {
-  if (buf.length > 3 && buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return { mime: 'image/jpeg', ext: 'jpg' };
-  if (buf.length > 8 && buf.readUInt32BE(0) === 0x89504e47) return { mime: 'image/png', ext: 'png' };
-  return null;
-}
 
 function loadSession(token) {
   if (!/^[A-Za-z0-9_-]{20,80}$/.test(token || '')) return null;
@@ -44,37 +37,38 @@ router.get('/:token', (req, res) => {
   if (!s) state = 'invalid';
   else if (s.status === 'processing' || s.status === 'done') state = 'sent';
   else if (s.expires_at < Date.now()) state = 'expired';
-  res.render('mobile/upload', { title: 'Фото документов', s, state, token: req.params.token });
+  const view = s && s.purpose === 'contract' ? 'mobile/contract' : 'mobile/upload';
+  res.render(view, { title: s && s.purpose === 'contract' ? 'Скан договора' : 'Фото документов', s, state, maxPages: MAX_PAGES });
 });
 
-router.post('/:token', upload.fields(KINDS.map((name) => ({ name, maxCount: 1 }))), async (req, res) => {
+const fields = upload.fields([...PASSPORT_KINDS.map((name) => ({ name, maxCount: 1 })), { name: 'pages', maxCount: MAX_PAGES }]);
+
+router.post('/:token', fields, async (req, res) => {
   const s = loadSession(req.params.token);
   if (!s || s.expires_at < Date.now()) return res.status(410).json({ error: 'Ссылка устарела. Покажите на компьютере новый QR-код.' });
   if (s.status !== 'waiting' && s.status !== 'error') return res.status(409).json({ error: 'Фото по этой ссылке уже отправлены.' });
 
+  if (s.purpose === 'contract') return saveContract(s, req, res);
+
   const files = {};
-  for (const kind of KINDS) {
+  for (const kind of PASSPORT_KINDS) {
     const f = req.files && req.files[kind] && req.files[kind][0];
     if (!f) continue;
-    const type = imageType(f.buffer);
-    if (!type) return res.status(400).json({ error: 'Поддерживаются только фото JPEG и PNG' });
-    files[kind] = { buffer: f.buffer, ...type };
+    const mime = storage.fileType(f.buffer);
+    if (mime !== 'image/jpeg' && mime !== 'image/png') return res.status(400).json({ error: 'Поддерживаются только фото JPEG и PNG' });
+    files[kind] = { buffer: f.buffer, mime };
   }
   if (!files.passport_main) return res.status(400).json({ error: 'Добавьте фото разворота паспорта с фотографией' });
 
-  // сохраняем файлы и привязываем к заявке (новые фото заменяют прежние того же вида)
-  const dir = path.join(UPLOAD_DIR, String(s.application_id));
-  fs.mkdirSync(dir, { recursive: true });
+  // новые фото заменяют прежние того же вида
   db.transaction(() => {
     for (const [kind, f] of Object.entries(files)) {
-      const name = `${kind}-${crypto.randomBytes(8).toString('hex')}.${f.ext}`;
-      fs.writeFileSync(path.join(dir, name), f.buffer, { mode: 0o600 });
       for (const old of db.prepare('SELECT * FROM documents WHERE application_id = ? AND kind = ?').all(s.application_id, kind)) {
-        fs.rm(path.join(UPLOAD_DIR, old.file), () => {});
+        storage.remove(old.file);
       }
       db.prepare('DELETE FROM documents WHERE application_id = ? AND kind = ?').run(s.application_id, kind);
-      db.prepare('INSERT INTO documents (application_id, kind, file, mime, size) VALUES (?, ?, ?, ?, ?)')
-        .run(s.application_id, kind, `${s.application_id}/${name}`, f.mime, f.buffer.length);
+      db.prepare('INSERT INTO documents (application_id, kind, file, mime, size, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(s.application_id, kind, storage.save(s.application_id, kind, f.buffer), f.mime, f.buffer.length, s.created_by);
     }
     db.prepare("UPDATE scan_sessions SET status = 'processing', error = NULL WHERE id = ?").run(s.id);
   })();
@@ -84,11 +78,11 @@ router.post('/:token', upload.fields(KINDS.map((name) => ({ name, maxCount: 1 })
   try {
     const passport = await ocr.recognizePassport(files.passport_main.buffer, files.passport_main.mime);
     const reg = files.passport_reg ? await ocr.recognizeRegistration(files.passport_reg.buffer, files.passport_reg.mime) : { fields: {}, notes: [] };
-    const fields = {};
-    for (const [k, v] of Object.entries({ ...passport.fields, ...reg.fields })) if (v) fields[k] = v;
+    const found = {};
+    for (const [k, v] of Object.entries({ ...passport.fields, ...reg.fields })) if (v) found[k] = v;
     const result = {
       source: passport.source,
-      fields,
+      fields: found,
       uncertain: [...(passport.uncertain || []), ...(reg.uncertain || [])],
       notes: [...passport.notes, ...reg.notes],
     };
@@ -99,12 +93,39 @@ router.post('/:token', upload.fields(KINDS.map((name) => ({ name, maxCount: 1 })
   }
 });
 
+// Страницы подписанного договора добавляются к уже загруженным
+function saveContract(s, req, res) {
+  const pages = (req.files && req.files.pages) || [];
+  if (!pages.length) return res.status(400).json({ error: 'Сфотографируйте хотя бы одну страницу договора' });
+  for (const f of pages) {
+    const mime = storage.fileType(f.buffer);
+    if (mime !== 'image/jpeg' && mime !== 'image/png') return res.status(400).json({ error: 'Поддерживаются только фото JPEG и PNG' });
+  }
+  addContractPages(s.application_id, pages.map((f) => f.buffer), s.created_by);
+  db.prepare("UPDATE scan_sessions SET status = 'done', result = ? WHERE id = ?").run(JSON.stringify({ pages: pages.length }), s.id);
+  res.json({ ok: true, pages: pages.length });
+}
+
+function addContractPages(applicationId, buffers, userId) {
+  return db.transaction(() => {
+    let page = db.prepare("SELECT coalesce(max(page), 0) p FROM documents WHERE application_id = ? AND kind = 'contract_page'").get(applicationId).p;
+    for (const buf of buffers) {
+      page += 1;
+      db.prepare('INSERT INTO documents (application_id, kind, page, file, mime, size, uploaded_by) VALUES (?, ?, ?, ?, ?, ?, ?)')
+        .run(applicationId, 'contract_page', page, storage.save(applicationId, 'contract', buf), storage.fileType(buf), buf.length, userId);
+    }
+    return page;
+  })();
+}
+
 router.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
-    return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'Файл больше 12 МБ' : 'Ошибка загрузки файла' });
+    const msg = { LIMIT_FILE_SIZE: 'Файл больше 12 МБ', LIMIT_FILE_COUNT: `Не больше ${MAX_PAGES} страниц за раз` }[err.code] || 'Ошибка загрузки файла';
+    return res.status(400).json({ error: msg });
   }
   next(err);
 });
 
 module.exports = router;
-module.exports.UPLOAD_DIR = UPLOAD_DIR;
+module.exports.addContractPages = addContractPages;
+module.exports.MAX_PAGES = MAX_PAGES;

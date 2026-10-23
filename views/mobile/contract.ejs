@@ -1,0 +1,132 @@
+<%- include('../partials/head') %>
+<%- include('_top') %>
+<style>
+  .pages { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+  .pg { background: var(--white); border-radius: 14px; padding: 8px; position: relative; }
+  .pg canvas { width: 100%; height: auto; border-radius: 8px; display: block; background: #000; }
+  .pg .no { position: absolute; top: 14px; left: 14px; background: var(--black); color: var(--yellow); font-weight: 800; font-size: 12px; border-radius: 20px; padding: 2px 8px; }
+  .pg .row { display: flex; justify-content: space-between; margin-top: 6px; }
+  .pg button { background: none; border: 0; font: inherit; font-weight: 700; font-size: 13px; padding: 6px; cursor: pointer; }
+  .pg .del { color: var(--err); }
+  .add { display: flex; align-items: center; justify-content: center; gap: 10px; border: 2px dashed #c9c9cf; border-radius: 14px; padding: 26px; font-weight: 800; cursor: pointer; background: var(--white); }
+  .add svg { width: 26px; height: 26px; }
+  .add input { display: none; }
+</style>
+<div class="m-wrap">
+<% if (state !== 'ok') { %>
+  <div class="center-card">
+    <% if (state === 'sent') { %>
+      <div class="big-ico" style="background:var(--ok-soft);color:var(--ok)">✓</div>
+      <h1>Договор загружен</h1>
+      <p class="muted">Страницы прикреплены к рассрочке. Их можно посмотреть в карточке заявки на компьютере.</p>
+    <% } else { %>
+      <div class="big-ico" style="background:var(--warn-soft);color:var(--warn)">!</div>
+      <h1><%= state === 'expired' ? 'Ссылка устарела' : 'Ссылка недействительна' %></h1>
+      <p class="muted">Нажмите на компьютере «Загрузить по QR-коду» ещё раз и отсканируйте новый код.</p>
+    <% } %>
+  </div>
+<% } else { %>
+  <div id="form-view">
+    <h1>Скан подписанного договора</h1>
+    <p class="muted" style="margin-top:0">Снимайте каждую страницу по очереди, сверху вниз, при хорошем свете. Страница должна целиком попасть в кадр, подписи — читаться.</p>
+    <div class="pages" id="pages"></div>
+    <label class="add" id="add">
+      <%- include('../partials/icon', { icon: 'camera' }) %>
+      <span id="add-label">Сфотографировать страницу 1</span>
+      <input type="file" accept="image/*" multiple id="file">
+    </label>
+    <div class="alert alert-error" id="err" style="display:none;margin-top:14px"></div>
+  </div>
+  <div id="done-view" class="center-card" style="display:none">
+    <div class="big-ico" style="background:var(--ok-soft);color:var(--ok)">✓</div>
+    <h1>Договор загружен</h1>
+    <p class="muted" id="done-text">Страницы прикреплены к рассрочке.</p>
+  </div>
+  <div class="send-bar" id="send-bar">
+    <button class="btn btn-primary btn-lg btn-block" id="send" disabled>Отправить</button>
+  </div>
+<% } %>
+</div>
+<% if (state === 'ok') { %>
+<script>
+(function () {
+  var MAX = 2400, LIMIT = <%= maxPages %>;
+  var pages = [];
+  var list = document.getElementById('pages');
+  var input = document.getElementById('file');
+  var sendBtn = document.getElementById('send');
+  var err = document.getElementById('err');
+
+  function draw(p) {
+    var w = p.img.naturalWidth, h = p.img.naturalHeight;
+    var k = Math.min(1, MAX / Math.max(w, h));
+    w = Math.round(w * k); h = Math.round(h * k);
+    var turned = p.rot % 180 !== 0;
+    p.canvas.width = turned ? h : w; p.canvas.height = turned ? w : h;
+    var ctx = p.canvas.getContext('2d');
+    ctx.translate(p.canvas.width / 2, p.canvas.height / 2);
+    ctx.rotate(p.rot * Math.PI / 180);
+    ctx.drawImage(p.img, -w / 2, -h / 2, w, h);
+  }
+
+  function render() {
+    list.innerHTML = '';
+    pages.forEach(function (p, i) {
+      var el = document.createElement('div');
+      el.className = 'pg';
+      el.appendChild(p.canvas);
+      el.insertAdjacentHTML('beforeend', '<span class="no">стр. ' + (i + 1) + '</span><div class="row"><button type="button" data-rot>↻ Повернуть</button><button type="button" class="del" data-del>Удалить</button></div>');
+      el.querySelector('[data-rot]').onclick = function () { p.rot = (p.rot + 90) % 360; draw(p); };
+      el.querySelector('[data-del]').onclick = function () { pages.splice(i, 1); render(); };
+      list.appendChild(el);
+    });
+    document.getElementById('add-label').textContent = 'Сфотографировать страницу ' + (pages.length + 1);
+    document.getElementById('add').style.display = pages.length >= LIMIT ? 'none' : '';
+    sendBtn.disabled = !pages.length;
+    sendBtn.textContent = pages.length ? 'Отправить ' + pages.length + ' стр.' : 'Отправить';
+  }
+
+  input.addEventListener('change', function () {
+    var files = Array.prototype.slice.call(input.files, 0, LIMIT - pages.length);
+    files.forEach(function (f) {
+      var img = new Image();
+      img.onload = function () {
+        var p = { img: img, rot: 0, canvas: document.createElement('canvas') };
+        draw(p);
+        pages.push(p);
+        render();
+      };
+      img.src = URL.createObjectURL(f);
+    });
+    input.value = '';
+  });
+
+  sendBtn.addEventListener('click', async function () {
+    err.style.display = 'none';
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Отправляем…';
+    try {
+      var fd = new FormData();
+      for (var i = 0; i < pages.length; i++) {
+        var blob = await new Promise(function (r) { pages[i].canvas.toBlob(r, 'image/jpeg', 0.88); });
+        fd.append('pages', blob, 'page-' + (i + 1) + '.jpg');
+      }
+      var res = await fetch(location.pathname, { method: 'POST', body: fd });
+      var data = await res.json().catch(function () { return {}; });
+      if (!res.ok) throw new Error(data.error || 'Ошибка отправки');
+      document.getElementById('form-view').style.display = 'none';
+      document.getElementById('send-bar').style.display = 'none';
+      document.getElementById('done-text').textContent = 'Загружено страниц: ' + data.pages + '. Их можно посмотреть в карточке заявки на компьютере.';
+      document.getElementById('done-view').style.display = '';
+    } catch (e) {
+      err.textContent = e.message === 'Failed to fetch' ? 'Нет связи с сервером. Проверьте интернет и попробуйте снова.' : e.message;
+      err.style.display = '';
+      render();
+    }
+  });
+  render();
+})();
+</script>
+<% } %>
+</body>
+</html>

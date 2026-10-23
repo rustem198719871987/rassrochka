@@ -5,6 +5,11 @@ const { db, setSetting, getSecret, secretFromEnv } = require('../lib/db');
 const sms = require('../lib/sms');
 const ocr = require('../lib/ocr');
 const u = require('../lib/util');
+const multer = require('multer');
+const payments = require('../lib/payments');
+const statement = require('../lib/statement');
+const storage = require('../lib/storage');
+const jobs = require('../lib/jobs');
 const { setUserIps, PERSON_COLS } = require('./auth');
 
 const router = express.Router();
@@ -22,7 +27,12 @@ router.get('/', (req, res) => {
     ips: one('SELECT count(*) c FROM entrepreneurs WHERE active = 1').c,
     signed: one("SELECT count(*) c, coalesce(sum(total_amount),0) s FROM applications WHERE status IN ('signed','closed')"),
     month: one("SELECT count(*) c, coalesce(sum(total_amount),0) s FROM applications WHERE status IN ('signed','closed') AND contract_signed_at >= date('now','start of month')"),
-    overdue: one("SELECT count(*) c, coalesce(sum(amount),0) s FROM payments WHERE paid_at IS NULL AND due_date < date('now')"),
+    overdue: one(`SELECT count(*) c, coalesce(sum(p.amount - p.paid_amount),0) s FROM payments p JOIN applications a ON a.id = p.application_id
+                  WHERE a.status = 'signed' AND p.paid_amount < p.amount AND p.due_date < ?`, payments.today()),
+    records: one("SELECT count(*) c, coalesce(sum(amount),0) s FROM payment_records WHERE status = 'pending'"),
+    claims: one("SELECT count(*) c, coalesce(sum(overdue_amount),0) s FROM claims WHERE status IN ('new','handed')"),
+    noScan: one(`SELECT count(*) c FROM applications a WHERE a.status IN ('signed','closed')
+                 AND NOT EXISTS (SELECT 1 FROM documents d WHERE d.application_id = a.id AND d.kind = 'contract_page')`).c,
     declined: one("SELECT count(*) c FROM applications WHERE status = 'declined'").c,
   };
   const pendingSellersList = db.prepare("SELECT * FROM users WHERE role='seller' AND status='pending' ORDER BY id DESC LIMIT 10").all();
@@ -204,16 +214,121 @@ router.post('/applications/:appId/override', (req, res) => {
   res.redirect(`/app/${req.params.appId}`);
 });
 
-router.post('/payments/:pid/toggle', (req, res) => {
-  const p = db.prepare('SELECT * FROM payments WHERE id = ?').get(Number(req.params.pid));
-  if (!p) return res.redirect('/admin');
-  db.transaction(() => {
-    db.prepare("UPDATE payments SET paid_at = CASE WHEN paid_at IS NULL THEN datetime('now') ELSE NULL END WHERE id = ?").run(p.id);
-    const left = db.prepare('SELECT count(*) c FROM payments WHERE application_id = ? AND paid_at IS NULL').get(p.application_id).c;
-    db.prepare(`UPDATE applications SET status = ?, updated_at = datetime('now') WHERE id = ? AND status IN ('signed','closed')`)
-      .run(left ? 'signed' : 'closed', p.application_id);
-  })();
-  res.redirect(`/app/${p.application_id}`);
+// ---------- оплаты: подтверждение наличных, аннулирование ----------
+function backTo(req, res, fallback) {
+  res.redirect(req.body.back === 'payments' ? '/app/payments' : fallback);
+}
+
+router.post('/records/:rid/approve', (req, res) => {
+  const r = payments.decide(Number(req.params.rid), { approve: true, adminId: req.user.id, comment: u.str(req.body.comment, 500) });
+  u.flash(req, r ? 'ok' : 'error', r ? 'Оплата подтверждена и учтена в графике' : 'Оплата уже обработана');
+  backTo(req, res, r ? `/app/${r.application_id}#payments` : '/app/payments');
+});
+
+router.post('/records/:rid/reject', (req, res) => {
+  const comment = u.str(req.body.comment, 500);
+  const pending = db.prepare("SELECT * FROM payment_records WHERE id = ? AND status = 'pending'").get(Number(req.params.rid));
+  if (pending && !comment) {
+    u.flash(req, 'error', 'Укажите причину отклонения — её увидит продавец');
+    return backTo(req, res, `/app/${pending.application_id}#payments`);
+  }
+  const r = payments.decide(Number(req.params.rid), { approve: false, adminId: req.user.id, comment });
+  u.flash(req, r ? 'ok' : 'error', r ? 'Оплата отклонена' : 'Оплата уже обработана');
+  backTo(req, res, r ? `/app/${r.application_id}#payments` : '/app/payments');
+});
+
+router.post('/records/:rid/cancel', (req, res) => {
+  const r = payments.cancel(Number(req.params.rid), { adminId: req.user.id, comment: u.str(req.body.comment, 500) });
+  u.flash(req, r ? 'ok' : 'error', r ? 'Оплата аннулирована, график пересчитан' : 'Оплата не найдена');
+  res.redirect(r ? `/app/${r.application_id}#payments` : '/app/payments');
+});
+
+// ---------- документы: удалить ошибочно загруженную страницу скана ----------
+router.post('/documents/:docId/delete', (req, res) => {
+  const d = db.prepare("SELECT * FROM documents WHERE id = ? AND kind = 'contract_page'").get(Number(req.params.docId));
+  if (!d) return res.redirect('/app/search');
+  db.prepare('DELETE FROM documents WHERE id = ?').run(d.id);
+  storage.remove(d.file);
+  u.flash(req, 'ok', `Страница ${d.page} удалена`);
+  res.redirect(`/app/${d.application_id}#contract-scan`);
+});
+
+// ---------- банковские выписки ----------
+const stmtUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } });
+
+router.get('/statements', (req, res) => {
+  const uploads = db.prepare(`SELECT s.*, (SELECT count(*) FROM bank_transactions t WHERE t.upload_id = s.id AND t.status IN ('suggested','unmatched')) AS open
+                              FROM statement_uploads s ORDER BY s.id DESC LIMIT 50`).all();
+  res.render('admin/statements', { title: 'Выписки банка', uploads });
+});
+
+router.post('/statements', (req, res) => {
+  stmtUpload.single('file')(req, res, (err) => {
+    if (err || !req.file) {
+      u.flash(req, 'error', err ? 'Файл слишком большой' : 'Выберите файл выписки');
+      return res.redirect('/admin/statements');
+    }
+    try {
+      const { upload, stats } = statement.importStatement(req.file.buffer, { filename: u.str(req.file.originalname, 200), userId: req.user.id });
+      u.flash(req, 'ok', `Поступлений: ${stats.incoming}. Зачтено автоматически: ${stats.matched}, на проверку: ${stats.suggested + stats.unmatched}` +
+        (stats.duplicates ? `, уже загружались раньше: ${stats.duplicates}` : ''));
+      res.redirect(`/admin/statements/${upload}`);
+    } catch (e) {
+      u.flash(req, 'error', e.message);
+      res.redirect('/admin/statements');
+    }
+  });
+});
+
+router.get('/statements/:sid', (req, res) => {
+  const up = db.prepare('SELECT * FROM statement_uploads WHERE id = ?').get(Number(req.params.sid));
+  if (!up) return res.redirect('/admin/statements');
+  const rows = db.prepare(`SELECT t.*, a.number AS app_number, a.last_name, a.first_name, a.middle_name, e.name AS ip_name
+    FROM bank_transactions t LEFT JOIN applications a ON a.id = t.application_id LEFT JOIN entrepreneurs e ON e.id = t.entrepreneur_id
+    WHERE t.upload_id = ? ORDER BY CASE t.status WHEN 'suggested' THEN 0 WHEN 'unmatched' THEN 1 WHEN 'matched' THEN 2 ELSE 3 END, t.id`).all(up.id);
+  res.render('admin/statement', { title: `Выписка ${up.filename}`, up, rows });
+});
+
+router.post('/transactions/:tid/apply', (req, res) => {
+  const tx = db.prepare('SELECT * FROM bank_transactions WHERE id = ?').get(Number(req.params.tid));
+  if (!tx) return res.redirect('/admin/statements');
+  let appId = tx.application_id;
+  if (req.body.contract) {
+    const num = statement.contractNumber(req.body.contract) || u.str(req.body.contract, 30);
+    const app = db.prepare("SELECT id FROM applications WHERE number = ? AND status IN ('signed','closed')").get(num);
+    appId = app && app.id;
+    if (!appId) {
+      u.flash(req, 'error', `Оформленный договор ${num} не найден`);
+      return res.redirect(`/admin/statements/${tx.upload_id}`);
+    }
+  }
+  const ok = appId && statement.applyTransaction(tx.id, appId, req.user.id);
+  u.flash(req, ok ? 'ok' : 'error', ok ? 'Поступление зачтено в график' : 'Не удалось зачесть поступление');
+  res.redirect(`/admin/statements/${tx.upload_id}`);
+});
+
+router.post('/transactions/:tid/ignore', (req, res) => {
+  const tx = db.prepare('SELECT * FROM bank_transactions WHERE id = ?').get(Number(req.params.tid));
+  if (!tx) return res.redirect('/admin/statements');
+  db.prepare("UPDATE bank_transactions SET status = 'ignored' WHERE id = ? AND status IN ('suggested','unmatched')").run(tx.id);
+  res.redirect(`/admin/statements/${tx.upload_id}`);
+});
+
+// ---------- претензии ----------
+router.post('/claims/:cid/close', (req, res) => {
+  const c = db.prepare("SELECT * FROM claims WHERE id = ? AND status <> 'closed'").get(Number(req.params.cid));
+  if (c) {
+    db.prepare("UPDATE claims SET status = 'closed', closed_at = datetime('now'), close_reason = ? WHERE id = ?")
+      .run(u.str(req.body.reason, 300) || 'Закрыта администратором', c.id);
+    u.flash(req, 'ok', 'Претензия закрыта');
+  }
+  res.redirect(req.body.back === 'list' ? '/app/claims' : `/app/${c ? c.application_id : ''}`);
+});
+
+router.post('/jobs/run', async (req, res) => {
+  const r = await jobs.runAll({ manual: true });
+  u.flash(req, r ? 'ok' : 'error', r ? `Проверка выполнена. Отправлено напоминаний: ${r.sent}, сформировано претензий: ${r.claims}` : 'Проверка уже выполняется, попробуйте через минуту');
+  res.redirect('/admin/settings');
 });
 
 router.post('/applications/:appId/blacklist', (req, res) => {
@@ -268,6 +383,7 @@ router.get('/settings', (req, res) => res.render('admin/settings', {
   fsspOn: Boolean(process.env.FSSP_API_URL),
   bkiOn: Boolean(process.env.BKI_API_URL),
   ocrYandex: ocr.yandexConfigured(),
+  publicUrl: (db.prepare("SELECT value FROM settings WHERE key = 'public_url'").get() || {}).value || process.env.PUBLIC_URL || '',
   keys: {
     sms_ru_api_id: mask(getSecret('sms_ru_api_id')),
     sms_from: getSecret('sms_from'),
@@ -316,6 +432,14 @@ router.post('/settings', (req, res) => {
   setSetting('min_months', min);
   setSetting('max_months', max);
   setSetting('support_phone', u.str(req.body.support_phone, 50));
+  const reminder = Number(req.body.reminder_days);
+  const claimAfter = Number(req.body.claim_after_days);
+  const penalty = Number(String(req.body.penalty_percent).replace(',', '.'));
+  if (Number.isInteger(reminder) && reminder >= 1 && reminder <= 15) setSetting('reminder_days', reminder);
+  if (Number.isInteger(claimAfter) && claimAfter >= 1 && claimAfter <= 60) setSetting('claim_after_days', claimAfter);
+  if (penalty >= 0 && penalty <= 1) setSetting('penalty_percent', penalty);
+  const url = u.str(req.body.public_url, 200).replace(/\/$/, '');
+  if (!url || /^https?:\/\/[^\s/]+(\/[^\s]*)?$/.test(url)) setSetting('public_url', url);
   u.flash(req, 'ok', 'Настройки сохранены');
   res.redirect('/admin/settings');
 });

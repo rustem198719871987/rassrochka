@@ -1,0 +1,47 @@
+<%- include('../partials/shell_start') %>
+<div class="page-head">
+  <div>
+    <h1>Выписки банка</h1>
+    <div class="sub">Программа сама находит оплаты клиентов в выписке и зачитывает их в график</div>
+  </div>
+</div>
+<div class="two-col">
+  <form method="post" action="/admin/statements?_csrf=<%= csrf %>" enctype="multipart/form-data" class="card">
+    <h2>Загрузить выписку</h2>
+    <p class="muted" style="margin-top:0">В интернет-банке ИП откройте выписку по счёту за нужные дни и выберите <b>«Экспорт в 1С»</b> (файл <code>.txt</code>). Повторная загрузка тех же платежей ничего не задвоит.</p>
+    <label class="drop">
+      <%- include('../partials/icon', { icon: 'upload' }) %>
+      <span data-file-name>Выберите файл выписки</span>
+      <input type="file" name="file" accept=".txt,text/plain" required onchange="this.closest('form').querySelector('[data-file-name]').textContent = this.files[0] ? this.files[0].name : 'Выберите файл выписки'">
+    </label>
+    <button class="btn btn-dark btn-lg" type="submit" style="margin-top:16px">Загрузить и сверить</button>
+  </form>
+  <div class="card soft">
+    <h3>Как программа находит оплату</h3>
+    <ol class="small" style="padding-left:18px;margin:0;display:grid;gap:8px">
+      <li><b>По номеру договора</b> в назначении платежа («РТ-26-000012»). Он есть в QR-коде и реквизитах, которые получает клиент. Такие оплаты зачитываются сразу.</li>
+      <li><b>По ФИО плательщика</b>, если номера нет. Такие оплаты ждут вашего подтверждения.</li>
+      <li>Остальные поступления можно зачесть вручную, указав номер договора.</li>
+    </ol>
+    <p class="small muted" style="margin-bottom:0">Учитываются только поступления на счета ИП, добавленных в систему.</p>
+  </div>
+</div>
+<h2>Загруженные выписки</h2>
+<div class="table-wrap">
+  <table class="table">
+    <thead><tr><th>Файл</th><th>Дата загрузки</th><th class="num">Поступлений</th><th class="num">Зачтено автоматически</th><th>Требуют решения</th></tr></thead>
+    <tbody>
+      <% if (!uploads.length) { %><tr><td colspan="5" class="empty">Выписки ещё не загружались</td></tr><% } %>
+      <% for (const s of uploads) { %>
+        <tr class="link-row" data-href="/admin/statements/<%= s.id %>">
+          <td><a href="/admin/statements/<%= s.id %>"><b><%= s.filename %></b></a></td>
+          <td class="nowrap"><%= dateTime(s.created_at) %></td>
+          <td class="num"><%= s.total %></td>
+          <td class="num"><%= s.matched %></td>
+          <td><% if (s.open) { %><span class="pill draft"><%= s.open %></span><% } else { %><span class="pill approved">Нет</span><% } %></td>
+        </tr>
+      <% } %>
+    </tbody>
+  </table>
+</div>
+<%- include('../partials/shell_end') %>
