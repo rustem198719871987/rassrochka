@@ -17,6 +17,12 @@ app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
 app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
+
+// Версия стилей и скриптов: меняется при обновлении сайта, чтобы браузер не показывал старые файлы
+const assetVersion = require('crypto').createHash('sha1')
+  .update(['css/style.css', 'js/app.js', 'js/calc.js'].map((f) => require('fs').readFileSync(path.join(__dirname, 'public', f))).join(''))
+  .digest('hex').slice(0, 10);
+app.use((req, res, next) => { res.locals.v = assetVersion; next(); });
 app.use(express.urlencoded({ extended: true, limit: '200kb' }));
 
 app.use((req, res, next) => {

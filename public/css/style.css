@@ -116,7 +116,8 @@ legend::before { content: ''; width: 6px; height: 18px; background: var(--yellow
 
 /* ---------- каркас кабинета ---------- */
 .shell { display: flex; min-height: 100vh; background: linear-gradient(to right, var(--black) 260px, var(--white) 260px); }
-.sidebar { width: 260px; flex: none; background: var(--black); color: var(--white); display: flex; flex-direction: column; padding: 26px 16px; position: sticky; top: 0; height: 100vh; }
+.sidebar { width: 260px; flex: none; background: var(--black); color: var(--white); display: flex; flex-direction: column; padding: 26px 16px; position: sticky; top: 0; height: 100vh; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #3a3a3c transparent; }
+.sidebar .me { flex: none; }
 .sidebar .logo { padding: 0 8px 28px; }
 .sidebar .logo-word { font-size: 20px; }
 .sidebar .logo img { width: 34px; height: 34px; }
@@ -128,6 +129,15 @@ legend::before { content: ''; width: 6px; height: 18px; background: var(--yellow
 .nav .badge { margin-left: auto; background: var(--yellow); color: var(--black); border-radius: 20px; font-size: 12px; padding: 1px 8px; font-weight: 800; }
 .nav a.active .badge { background: var(--black); color: var(--yellow); }
 .nav-sep { height: 1px; background: #2c2c2e; margin: 12px 8px; }
+/* невысокое окно: меню администратора длинное — пункты плотнее, а если и так не помещается, панель прокручивается */
+@media (max-height: 900px) and (min-width: 861px) {
+  .sidebar { padding-top: 18px; padding-bottom: 18px; }
+  .sidebar .logo { padding-bottom: 16px; }
+  .nav { gap: 2px; }
+  .nav a { padding: 8px 12px; }
+  .nav-sep { margin: 6px 8px; }
+  .sidebar .me { padding-top: 10px; }
+}
 .sidebar .me { margin-top: auto; padding: 14px 10px 0; border-top: 1px solid #2c2c2e; font-size: 13.5px; }
 .sidebar .me .name { font-weight: 700; }
 .sidebar .me .role { color: #9a9aa0; font-size: 12.5px; }
