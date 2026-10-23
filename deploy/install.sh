@@ -75,7 +75,6 @@ log "Зависимости"
 (cd "$APP_DIR" && sudo -u "$APP_USER" HOME="$APP_DIR" npm ci --omit=dev --no-audit --no-fund --loglevel=error)
 
 log "Настройки (${ENV_FILE})"
-NEW_ADMIN_PASSWORD=""
 if [ ! -f "$ENV_FILE" ]; then
   NEW_ADMIN_PASSWORD="$(openssl rand -base64 18 | tr -dc 'A-Za-z0-9' | head -c 14)"
   cat > "$ENV_FILE" <<EOF
@@ -95,6 +94,8 @@ EOF
 fi
 chown root:"$APP_USER" "$ENV_FILE"
 chmod 640 "$ENV_FILE"
+# пароль остаётся в файле до первого успешного запуска — показываем его и при повторной установке
+NEW_ADMIN_PASSWORD="$(grep '^ADMIN_PASSWORD=' "$ENV_FILE" | cut -d= -f2-)"
 
 SERVER_IP="$(curl -fsS -4 --max-time 5 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')"
 if [ -n "${DOMAIN:-}" ]; then SITE_URL="https://${DOMAIN}"; else SITE_URL="http://${SERVER_IP}"; fi
