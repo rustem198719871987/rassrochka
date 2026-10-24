@@ -1,0 +1,23 @@
+<%- include('../partials/shell_start') %>
+<div class="page-head" data-autorefresh="20">
+  <div>
+    <h1>Проверка ФССП</h1>
+    <div class="sub">Заявки, по которым продавец ждёт решения. Найдите клиента на сайте ФССП (раздел «Поиск физических лиц», регион — все)
+      и нажмите результат — продавец увидит решение сразу. Страница обновляется сама каждые 20 секунд.
+      <% if (!fsspAuto) { %><br>Чтобы заявки проверялись без вашего участия, подключите поставщика данных в <a href="/admin/settings#fssp">Настройках</a>.<% } %></div>
+  </div>
+</div>
+<% if (!rows.length) { %>
+  <div class="card"><p class="empty" style="margin:0">Заявок, ожидающих проверки, нет</p></div>
+<% } %>
+<% for (const r of rows) { const wait = Math.max(0, Math.round((Date.now() - Date.parse(r.checked_at.replace(' ', 'T') + 'Z')) / 60e3)); %>
+  <div class="card">
+    <div class="actions" style="justify-content:space-between;margin-bottom:8px">
+      <div><a href="/app/<%= r.id %>?step=4"><b><%= r.number %></b></a> · <b><%= fio(r) %></b>, <%= date(r.birth_date) %> г. р.
+        <div class="small muted"><%= r.product_name %> · <%= money(r.total_amount) %> · продавец <%= fioShort({ last_name: r.s_last, first_name: r.s_first, middle_name: r.s_middle }) %></div></div>
+      <span class="pill <%= wait >= 5 ? 'declined' : 'draft' %>">ждёт <%= wait %> мин</span>
+    </div>
+    <%- include('../seller/_fssp_decision', { r, back: 'list', fsspUrl }) %>
+  </div>
+<% } %>
+<%- include('../partials/shell_end') %>

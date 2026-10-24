@@ -13,6 +13,7 @@ const jobs = require('../lib/jobs');
 const commission = require('../lib/commission');
 const annulments = require('../lib/annulments');
 const analytics = require('../lib/analytics');
+const fssp = require('../lib/fssp');
 const { setUserIps, PERSON_COLS } = require('./auth');
 
 const router = express.Router();
@@ -133,6 +134,7 @@ router.post('/sellers/:sellerId/decision', (req, res) => {
     return res.redirect(`/admin/sellers/${s.id}`);
   }
   db.prepare("UPDATE users SET status = ?, admin_comment = ?, updated_at = datetime('now') WHERE id = ?").run(decision, comment || null, s.id);
+  if (decision === 'blocked') u.endSessions(s.id);
   u.flash(req, 'ok', `Статус продавца: ${u.USER_STATUS[decision]}`);
   res.redirect(`/admin/sellers/${s.id}`);
 });
@@ -140,6 +142,7 @@ router.post('/sellers/:sellerId/decision', (req, res) => {
 router.post('/sellers/:sellerId/password', (req, res) => {
   const pass = crypto.randomBytes(6).toString('base64url');
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(pass, 10), req.seller.id);
+  u.endSessions(req.seller.id);
   u.flash(req, 'ok', `Новый пароль продавца: ${pass}`);
   res.redirect(`/admin/sellers/${req.seller.id}`);
 });
@@ -217,6 +220,33 @@ router.post('/applications/:appId/override', (req, res) => {
     u.flash(req, 'ok', 'Заявка одобрена вручную');
   }
   res.redirect(`/app/${req.params.appId}`);
+});
+
+// ---------- проверка ФССП администратором: заявки, ожидающие решения ----------
+router.get('/checks', (req, res) => {
+  const rows = db.prepare(`SELECT a.*, u.last_name AS s_last, u.first_name AS s_first, u.middle_name AS s_middle, u.phone AS s_phone
+    FROM applications a JOIN users u ON u.id = a.seller_id WHERE a.check_status = 'pending' ORDER BY a.checked_at`).all();
+  res.render('admin/checks', { title: 'Проверка ФССП', rows, fsspUrl: require('../lib/checks').FSSP_MANUAL_URL, fsspAuto: fssp.configured() });
+});
+
+router.post('/applications/:appId/fssp', (req, res) => {
+  const a = db.prepare("SELECT * FROM applications WHERE id = ? AND check_status = 'pending'").get(Number(req.params.appId));
+  if (!a) {
+    u.flash(req, 'error', 'Решение по заявке уже принято');
+    return res.redirect('/admin/checks');
+  }
+  const clean = req.body.result === 'clean';
+  const comment = u.str(req.body.comment, 300);
+  if (!clean && !comment) {
+    u.flash(req, 'error', 'Укажите, что найдено (например: 2 производства на 45 000 ₽)');
+    return res.redirect('/admin/checks');
+  }
+  const result = require('../lib/checks').decideFssp(JSON.parse(a.check_result), { clean, comment });
+  const status = result.status === 'clean' ? 'approved' : 'declined';
+  db.prepare(`UPDATE applications SET check_status = ?, check_result = ?, status = ?, updated_at = datetime('now')
+              WHERE id = ? AND check_status = 'pending'`).run(result.status, JSON.stringify(result), status, a.id);
+  u.flash(req, 'ok', `Заявка ${a.number}: ${status === 'approved' ? 'одобрена' : 'отказ'}. Продавец увидит решение сразу.`);
+  res.redirect(req.body.back === 'app' ? `/app/${a.id}?step=4` : '/admin/checks');
 });
 
 // ---------- оплаты: подтверждение наличных, аннулирование ----------
@@ -457,7 +487,9 @@ const mask = (v) => (v ? `••••${String(v).slice(-4)}` : '');
 
 router.get('/settings', (req, res) => res.render('admin/settings', {
   title: 'Настройки',
-  fsspOn: Boolean(process.env.FSSP_API_URL),
+  fsspOn: fssp.configured(),
+  fsspProvider: fssp.provider(),
+  fsspTest: (() => { const t = req.session.fsspTest; delete req.session.fsspTest; return t; })(),
   bkiOn: Boolean(process.env.BKI_API_URL),
   ocrYandex: ocr.yandexConfigured(),
   publicUrl: (db.prepare("SELECT value FROM settings WHERE key = 'public_url'").get() || {}).value || process.env.PUBLIC_URL || '',
@@ -466,19 +498,40 @@ router.get('/settings', (req, res) => res.render('admin/settings', {
     sms_from: getSecret('sms_from'),
     yandex_api_key: mask(getSecret('yandex_api_key')),
     yandex_folder_id: getSecret('yandex_folder_id'),
+    fssp_provider: getSecret('fssp_provider'),
+    fssp_token: mask(getSecret('fssp_token')),
+    fssp_region: getSecret('fssp_region'),
   },
   fromEnv: Object.fromEntries(['sms_ru_api_id', 'sms_from', 'yandex_api_key', 'yandex_folder_id'].map((k) => [k, secretFromEnv(k)])),
 }));
 
 // Ключи сервисов: пустое поле — оставить как есть, «-» — удалить
 router.post('/settings/integrations', (req, res) => {
-  for (const key of ['sms_ru_api_id', 'sms_from', 'yandex_api_key', 'yandex_folder_id']) {
+  for (const key of ['sms_ru_api_id', 'sms_from', 'yandex_api_key', 'yandex_folder_id', 'fssp_token', 'fssp_region']) {
     const v = u.str(req.body[key], 200);
     if (!v) continue;
     setSetting(key, v === '-' ? '' : v);
   }
+  if (req.body.fssp_provider !== undefined) setSetting('fssp_provider', fssp.PROVIDERS[req.body.fssp_provider] ? req.body.fssp_provider : '');
   u.flash(req, 'ok', 'Настройки сервисов сохранены');
   res.redirect('/admin/settings');
+});
+
+// Проверка подключения ФССП на любом человеке (например, на себе): показывает итог и начало ответа поставщика
+router.post('/settings/fssp-test', async (req, res) => {
+  const person = {
+    last_name: u.str(req.body.last_name, 80), first_name: u.str(req.body.first_name, 80),
+    middle_name: u.str(req.body.middle_name, 80), birth_date: u.isValidDate(req.body.birth_date) ? req.body.birth_date : '',
+  };
+  if (!person.last_name || !person.first_name || !person.birth_date) {
+    u.flash(req, 'error', 'Для проверки ФССП укажите фамилию, имя и дату рождения');
+  } else if (!fssp.configured()) {
+    u.flash(req, 'error', 'Сначала выберите поставщика и укажите ключ');
+  } else {
+    const r = await fssp.check(person, { useCache: false });
+    req.session.fsspTest = { status: r.status, details: r.details, raw: String(r.raw || '').slice(0, 2000) };
+  }
+  res.redirect('/admin/settings#fssp');
 });
 
 router.post('/settings/sms-test', async (req, res) => {
@@ -531,12 +584,14 @@ router.post('/settings', (req, res) => {
 
 router.post('/settings/phone', (req, res) => {
   const newPhone = u.normPhone(req.body.phone);
-  if (!bcrypt.compareSync(String(req.body.current || ''), req.user.password_hash)) u.flash(req, 'error', 'Текущий пароль неверен');
+  if (!u.rateLimit(`admin-pass:${req.user.id}`, 10, 3600e3)) u.flash(req, 'error', 'Слишком много попыток, подождите час');
+  else if (!bcrypt.compareSync(String(req.body.current || ''), req.user.password_hash)) u.flash(req, 'error', 'Текущий пароль неверен');
   else if (!u.isPhone(newPhone)) u.flash(req, 'error', 'Введите номер в формате +7 (XXX) XXX-XX-XX');
   else if (newPhone === req.user.phone) u.flash(req, 'error', 'Это ваш текущий номер');
   else if (db.prepare('SELECT 1 FROM users WHERE phone = ? AND id <> ?').get(newPhone, req.user.id)) u.flash(req, 'error', 'Этот номер уже занят продавцом');
   else {
     db.prepare("UPDATE users SET phone = ?, updated_at = datetime('now') WHERE id = ?").run(newPhone, req.user.id);
+    u.endSessions(req.user.id, req.sessionID);
     u.flash(req, 'ok', `Телефон изменён. Теперь входите с номером ${u.phoneFmt(newPhone)}`);
   }
   res.redirect('/admin/settings');
@@ -544,12 +599,14 @@ router.post('/settings/phone', (req, res) => {
 
 router.post('/settings/password', (req, res) => {
   const { current, password, password2 } = req.body;
-  if (!bcrypt.compareSync(String(current || ''), req.user.password_hash)) u.flash(req, 'error', 'Текущий пароль неверен');
-  else if (String(password || '').length < 8) u.flash(req, 'error', 'Новый пароль — минимум 8 символов');
+  if (!u.rateLimit(`admin-pass:${req.user.id}`, 10, 3600e3)) u.flash(req, 'error', 'Слишком много попыток, подождите час');
+  else if (!bcrypt.compareSync(String(current || ''), req.user.password_hash)) u.flash(req, 'error', 'Текущий пароль неверен');
+  else if (typeof password !== 'string' || password.length < 8) u.flash(req, 'error', 'Новый пароль — минимум 8 символов');
   else if (password !== password2) u.flash(req, 'error', 'Пароли не совпадают');
   else {
     db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(password, 10), req.user.id);
-    u.flash(req, 'ok', 'Пароль изменён');
+    u.endSessions(req.user.id, req.sessionID); // другие входы под этим паролем завершаются
+    u.flash(req, 'ok', 'Пароль изменён. Вход на других устройствах завершён.');
   }
   res.redirect('/admin/settings');
 });

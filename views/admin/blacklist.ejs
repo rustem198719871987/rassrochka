@@ -29,7 +29,7 @@
           <td class="nowrap"><%= r.passport_number ? `${r.passport_series || ''} ${r.passport_number}` : '—' %></td>
           <td class="nowrap"><%= r.phone ? phone(r.phone) : '—' %></td>
           <td><%= r.reason %></td><td class="small nowrap"><%= date(r.created_at) %></td>
-          <td><form method="post" action="/admin/blacklist/<%= r.id %>/delete" onsubmit="return confirm('Удалить запись?')"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-sm" type="submit">Удалить</button></form></td>
+          <td><form method="post" action="/admin/blacklist/<%= r.id %>/delete" data-confirm="Удалить запись?"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="btn btn-ghost btn-sm" type="submit">Удалить</button></form></td>
         </tr>
       <% } %>
     </tbody>

@@ -12,7 +12,7 @@
     <label class="drop">
       <%- include('../partials/icon', { icon: 'upload' }) %>
       <span data-file-name>Выберите файл выписки</span>
-      <input type="file" name="file" accept=".txt,text/plain" required onchange="this.closest('form').querySelector('[data-file-name]').textContent = this.files[0] ? this.files[0].name : 'Выберите файл выписки'">
+      <input type="file" name="file" accept=".txt,text/plain" required data-file-label>
     </label>
     <button class="btn btn-dark btn-lg" type="submit" style="margin-top:16px">Загрузить и сверить</button>
   </form>

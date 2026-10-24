@@ -1,0 +1,21 @@
+<%# Решение администратора по ФССП: данные клиента для поиска на сайте ФССП и две кнопки %>
+<div class="fssp-decision">
+  <div class="fssp-data">
+    <% for (const [label, val] of [['Фамилия', r.last_name], ['Имя', r.first_name], ['Отчество', r.middle_name], ['Дата рождения', date(r.birth_date)]]) { if (!val) continue; %>
+      <span><%= label %>: <b><%= val %></b> <button type="button" class="link-btn" data-copy-text="<%= val %>">копировать</button></span>
+    <% } %>
+  </div>
+  <div class="small muted">Паспорт <%= r.passport_series %> <%= r.passport_number %>, код <%= r.passport_dept_code %> · прописка: <%= r.reg_address %></div>
+  <div class="actions" style="margin-top:10px">
+    <a class="btn btn-outline btn-sm" href="<%= fsspUrl %>" target="_blank" rel="noopener">Открыть сайт ФССП ↗</a>
+    <form method="post" action="/admin/applications/<%= r.id %>/fssp" class="inline-form">
+      <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="<%= back %>"><input type="hidden" name="result" value="clean">
+      <button class="btn btn-ok btn-sm" type="submit">Долгов нет — одобрить</button>
+    </form>
+    <form method="post" action="/admin/applications/<%= r.id %>/fssp" class="inline-form reject-form">
+      <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="<%= back %>"><input type="hidden" name="result" value="hit">
+      <input class="input input-sm" name="comment" placeholder="Что найдено" aria-label="Что найдено" required>
+      <button class="btn btn-danger btn-sm" type="submit">Есть долги — отказ</button>
+    </form>
+  </div>
+</div>

@@ -44,7 +44,7 @@
 <body>
 <div class="toolbar">
   <a class="sec" href="<%= locals.backUrl || `/app/${a.id}` %>">← К заявке</a>
-  <button type="button" onclick="window.print()">Распечатать / сохранить PDF</button>
+  <button type="button" data-print>Распечатать / сохранить PDF</button>
 </div>
 <div class="page">
   <div class="brand"><b>Рассрочка<span class="tag">.Топ</span></b><span class="muted"><%= a.number %></span></div>

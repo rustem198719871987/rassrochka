@@ -27,7 +27,7 @@
                 <form method="post" action="/app/claims/<%= c.id %>/delivered"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="<%= backVal %>"><button class="btn btn-outline btn-sm" type="submit">Вручена клиенту</button></form>
               <% } %>
               <% if (user.role === 'admin' && c.status !== 'closed') { %>
-                <form method="post" action="/admin/claims/<%= c.id %>/close" onsubmit="return confirm('Закрыть претензию?')"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="<%= backVal %>"><button class="link-btn" type="submit">Закрыть</button></form>
+                <form method="post" action="/admin/claims/<%= c.id %>/close" data-confirm="Закрыть претензию?"><input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="back" value="<%= backVal %>"><button class="link-btn" type="submit">Закрыть</button></form>
               <% } %>
             </div>
           </td>

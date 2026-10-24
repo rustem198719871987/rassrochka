@@ -14,7 +14,7 @@
     </div>
   </div>
   <% if (editable && step <= 5) { %>
-    <form method="post" action="/app/<%= a.id %>/cancel" onsubmit="return confirm('Отменить заявку?')">
+    <form method="post" action="/app/<%= a.id %>/cancel" data-confirm="Отменить заявку?">
       <%- hidden %><button class="btn btn-ghost btn-sm" type="submit">Отменить заявку</button>
     </form>
   <% } %>
@@ -169,7 +169,18 @@
 <% if (step === 4) { %>
   <div class="card">
     <h2>Проверка клиента по базам</h2>
-    <% if (checkResult) { %>
+    <% if (a.check_status === 'pending') { %>
+      <div class="check-wait" data-check-wait data-app="<%= a.id %>" data-deadline="<%= locals.checkDeadline || 0 %>">
+        <span class="spinner"></span>
+        <div><b>Ожидаем решение</b><div class="small muted">Клиент проверяется по базе ФССП. Страница обновится сама, как только решение будет готово.</div></div>
+        <div class="check-timer" data-check-timer>5:00</div>
+      </div>
+      <div class="alert alert-warn" data-check-late hidden>Решение задерживается — подождите ещё немного или свяжитесь с администратором.</div>
+      <% if (isAdmin) { %>
+        <div class="card soft" style="margin-top:16px"><h3>Решение администратора по ФССП</h3>
+          <%- include('_fssp_decision', { r: a, back: 'app', fsspUrl }) %></div>
+      <% } %>
+    <% } else if (checkResult) { %>
       <% if (a.check_status === 'clean') { %>
         <div class="alert alert-ok"><b>Проверка пройдена.</b> Негативной информации не найдено — можно оформлять договор.</div>
       <% } else if (a.check_status === 'override') { %>
@@ -190,7 +201,7 @@
         <% if (a.status === 'approved') { %><a class="btn btn-dark btn-lg" href="/app/<%= a.id %>?step=5">Далее — договор</a><% } %>
         <% if (editable) { %>
           <form method="post" action="/app/<%= a.id %>/check">
-            <%- hidden %><input type="hidden" name="fssp_manual" value="<%= checkResult.items.some(i => i.manual) ? '1' : '' %>">
+            <%- hidden %>
             <button class="btn btn-outline" type="submit">Проверить повторно</button>
           </form>
         <% } %>
@@ -208,23 +219,16 @@
       <div class="check-items" style="margin-bottom:18px">
         <div class="check-item ok"><span class="ico">1</span><div><b>Внутренний стоп-лист</b><div class="small muted">Клиенты, внесённые администратором как недобросовестные</div></div></div>
         <div class="check-item ok"><span class="ico">2</span><div><b>История рассрочек в системе</b><div class="small muted">Просрочки по ранее оформленным договорам</div></div></div>
-        <div class="check-item <%= fsspConfigured ? 'ok' : 'not_configured' %>"><span class="ico">3</span><div><b>ФССП — исполнительные производства</b><div class="small muted"><%= fsspConfigured ? 'Автоматическая проверка' : 'Автоматическая проверка не подключена — проверьте вручную' %></div></div></div>
+        <div class="check-item <%= fsspConfigured ? 'ok' : 'not_configured' %>"><span class="ico">3</span><div><b>ФССП — исполнительные производства</b><div class="small muted"><%= fsspConfigured ? 'Автоматически' : 'Проверяет администратор — решение придёт через несколько минут' %></div></div></div>
         <div class="check-item not_configured"><span class="ico">4</span><div><b>Банковские стоп-листы / БКИ</b><div class="small muted">Проверяется, если подключён поставщик данных</div></div></div>
       </div>
       <form method="post" action="/app/<%= a.id %>/check">
         <%- hidden %>
-        <% if (!fsspConfigured) { %>
-          <div class="alert alert-warn">
-            Откройте <a href="<%= fsspUrl %>" target="_blank" rel="noopener">банк данных исполнительных производств ФССП</a>,
-            найдите клиента по ФИО, дате рождения и региону. Если долгов нет — отметьте:
-          </div>
-          <label class="check"><input type="checkbox" name="fssp_manual" value="1"><span>Я проверил(а) клиента на сайте ФССП — <b>исполнительных производств нет</b></span></label>
-        <% } %>
         <button class="btn btn-dark btn-lg" type="submit" style="margin-top:8px">Проверить клиента</button>
       </form>
     <% } %>
     <% if (isAdmin && a.client_filled_at) { %>
-      <form method="post" action="/admin/applications/<%= a.id %>/blacklist" class="actions" style="margin-top:20px" onsubmit="return confirm('Добавить клиента в стоп-лист?')">
+      <form method="post" action="/admin/applications/<%= a.id %>/blacklist" class="actions" style="margin-top:20px" data-confirm="Добавить клиента в стоп-лист?">
         <%- hidden %>
         <input class="input" name="reason" placeholder="Причина (необязательно)" style="max-width:320px">
         <button class="btn btn-danger btn-sm" type="submit">В стоп-лист</button>
@@ -356,7 +360,7 @@
                 </a>
                 <span class="small">стр. <%= d.page %> · <%= date(d.created_at) %></span>
                 <% if (isAdmin) { %>
-                  <form method="post" action="/admin/documents/<%= d.id %>/delete" onsubmit="return confirm('Удалить страницу <%= d.page %>?')"><%- hidden %><button class="link-btn" type="submit">Удалить</button></form>
+                  <form method="post" action="/admin/documents/<%= d.id %>/delete" data-confirm="Удалить страницу <%= d.page %>?"><%- hidden %><button class="link-btn" type="submit">Удалить</button></form>
                 <% } %>
               </div>
             <% } %>
@@ -367,7 +371,7 @@
         <div class="scan-actions" data-contract-scan data-app="<%= a.id %>" data-csrf="<%= csrf %>" <%= annulled ? 'hidden' : '' %>>
           <button type="button" class="btn btn-dark" data-scan-start><%- include('../partials/icon', { icon: 'camera' }) %><%= contractPages.length ? 'Добавить страницы по QR-коду' : 'Загрузить по QR-коду' %></button>
           <form method="post" action="/app/<%= a.id %>/contract-files?_csrf=<%= csrf %>" enctype="multipart/form-data" class="file-form">
-            <label class="btn btn-outline"><%- include('../partials/icon', { icon: 'upload' }) %>С компьютера<input type="file" name="files" multiple accept="image/jpeg,image/png,application/pdf" hidden onchange="this.form.submit()"></label>
+            <label class="btn btn-outline"><%- include('../partials/icon', { icon: 'upload' }) %>С компьютера<input type="file" name="files" multiple accept="image/jpeg,image/png,application/pdf" hidden data-autosubmit></label>
           </form>
         </div>
         <div class="scan-body" data-scan-body hidden>
@@ -423,7 +427,7 @@
                           <form method="post" action="/admin/records/<%= r.id %>/approve" class="inline-form"><%- hidden %><button class="btn btn-ok btn-sm" type="submit">Подтвердить</button></form>
                           <form method="post" action="/admin/records/<%= r.id %>/reject" class="inline-form reject-form"><%- hidden %><input class="input input-sm" name="comment" placeholder="Причина" aria-label="Причина отклонения"><button class="btn btn-danger btn-sm" type="submit">Отклонить</button></form>
                         <% } else if (r.status === 'confirmed') { %>
-                          <form method="post" action="/admin/records/<%= r.id %>/cancel" onsubmit="return confirm('Аннулировать оплату <%= money(r.amount) %>? График будет пересчитан.')"><%- hidden %><button class="link-btn" type="submit">Аннулировать</button></form>
+                          <form method="post" action="/admin/records/<%= r.id %>/cancel" data-confirm="Аннулировать оплату <%= money(r.amount) %>? График будет пересчитан."><%- hidden %><button class="link-btn" type="submit">Аннулировать</button></form>
                         <% } %>
                       </td>
                     <% } %>

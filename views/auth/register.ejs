@@ -6,6 +6,7 @@
   </div>
   <h1>Регистрация продавца</h1>
   <p class="sub">После проверки администратором вы сможете оформлять рассрочки</p>
+  <% if (locals.error) { %><div class="alert alert-error"><%= error %></div><% } %>
   <% if (Object.keys(errors).length) { %><div class="alert alert-error">Проверьте выделенные поля</div><% } %>
   <form method="post" action="/register" novalidate>
     <input type="hidden" name="_csrf" value="<%= csrf %>">

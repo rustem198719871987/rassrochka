@@ -46,5 +46,5 @@
     <a class="btn btn-dark btn-block" href="/app/new">Оформить заявку</a>
   </div>
 </div>
-<script>window.MARKUP = <%- JSON.stringify(settings.markupPercent) %>; window.COMMISSION = <%- JSON.stringify({ rates: settings.commissionRates, base: settings.commissionBase }) %>;</script>
+<div hidden id="calc-config" data-markup="<%= settings.markupPercent %>" data-commission="<%= JSON.stringify({ rates: settings.commissionRates, base: settings.commissionBase }) %>"></div>
 <%- include('../partials/shell_end') %>

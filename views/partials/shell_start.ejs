@@ -5,6 +5,7 @@
      ['/admin/analytics', 'Аналитика', 'chart', path.startsWith('/admin/analytics')],
      ['/admin/sellers', 'Продавцы', 'users', path.startsWith('/admin/sellers'), pendingSellers],
      ['/admin/ips', 'ИП и реквизиты', 'bank', path.startsWith('/admin/ips')],
+     ['/admin/checks', 'Проверка ФССП', 'shield', path.startsWith('/admin/checks'), locals.badgeChecks],
      ['/app/search', 'Рассрочки', 'list', path === '/app/search' || /^\/app\/\d/.test(path)],
      ['/app/payments', 'Платежи', 'wallet', path === '/app/payments', locals.badgePayments],
      ['/admin/statements', 'Выписки банка', 'bank-doc', path.startsWith('/admin/statements')],

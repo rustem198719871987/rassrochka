@@ -107,6 +107,8 @@ ADMIN_PHONE=${ADMIN_PHONE:-79990000000}
 ADMIN_PASSWORD=${NEW_ADMIN_PASSWORD}
 COOKIE_SECURE=0
 PUBLIC_URL=
+# сайт слушает только локальный адрес, снаружи — через nginx
+HOST=127.0.0.1
 JOBS=on
 TZ_DISPLAY=Europe/Moscow
 EOF
@@ -186,6 +188,7 @@ chmod 644 /etc/cron.d/rassrochka-backup
 
 if [ "$TEST_MODE" = "1" ]; then
   log "Тестовый режим: службы, файрвол и HTTPS пропущены"
+  PORT="$PORT" ENV_FILE="$ENV_FILE" TEST_MODE=1 bash "$APP_DIR/deploy/harden.sh"
 else
   log "Запуск"
   systemctl daemon-reload
@@ -209,6 +212,11 @@ else
       SITE_URL="http://${DOMAIN}"
     fi
   fi
+
+  log "Защита от DDoS и перебора паролей"
+  PORT="$PORT" SITE=/etc/nginx/sites-available/rassrochka ENV_FILE="$ENV_FILE" bash "$APP_DIR/deploy/harden.sh" \
+    || echo "Защита не включена — сайт работает без неё. Пришлите вывод выше разработчику."
+  systemctl restart rassrochka
 
   log "Проверка"
   for i in $(seq 1 20); do

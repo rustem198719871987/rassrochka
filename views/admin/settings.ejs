@@ -37,7 +37,7 @@
       <div class="check-items">
         <div class="check-item <%= smsDev ? 'not_configured' : 'ok' %>"><span class="ico"><%= smsDev ? '?' : '✓' %></span><div><b>SMS (SMS.ru)</b><div class="small muted"><%= smsDev ? 'Тестовый режим: код показывается продавцу на экране. Укажите API-ключ ниже' : 'Подключено — коды и уведомления уходят клиентам' %></div></div></div>
         <div class="check-item ok"><span class="ico">✓</span><div><b>Распознавание паспорта</b><div class="small muted"><%= ocrYandex ? 'Yandex Vision (платно): все поля разворота и адрес прописки' : 'Встроенное, бесплатно: ФИО, дата рождения, серия и номер, дата и код выдачи, «кем выдан» (по справочнику кодов), место рождения, адрес прописки. Yandex Vision не нужен' %></div></div></div>
-        <div class="check-item <%= locals.fsspOn ? 'ok' : 'not_configured' %>"><span class="ico"><%= locals.fsspOn ? '✓' : '?' %></span><div><b>Проверка ФССП</b><div class="small muted"><%= locals.fsspOn ? 'Подключено' : 'Ручная проверка продавцом. Для автоматической укажите FSSP_API_URL в .env' %></div></div></div>
+        <div class="check-item <%= locals.fsspOn ? 'ok' : 'not_configured' %>"><span class="ico"><%= locals.fsspOn ? '✓' : '?' %></span><div><b>Проверка ФССП</b><div class="small muted"><%= locals.fsspOn ? 'Автоматически через ' + (fsspProvider === 'custom' ? 'FSSP_API_URL' : 'api-cloud.ru') + ' — продавец не участвует' : 'Ручная проверка продавцом. Для автоматической подключите поставщика ниже' %></div></div></div>
         <div class="check-item <%= locals.bkiOn ? 'ok' : 'not_configured' %>"><span class="ico"><%= locals.bkiOn ? '✓' : '?' %></span><div><b>Банковские стоп-листы / БКИ</b><div class="small muted"><%= locals.bkiOn ? 'Подключено' : 'Не подключено. Укажите BKI_API_URL в .env' %></div></div></div>
       </div>
     </div>
@@ -55,7 +55,36 @@
         <div class="field col-6"><label for="k3">API-ключ</label><input class="input" id="k3" name="yandex_api_key" placeholder="<%= keys.yandex_api_key || 'не указан' %>" <%= fromEnv.yandex_api_key ? 'disabled' : '' %>></div>
         <div class="field col-6"><label for="k4">ID каталога</label><input class="input" id="k4" name="yandex_folder_id" placeholder="<%= keys.yandex_folder_id || 'не указан' %>" <%= fromEnv.yandex_folder_id ? 'disabled' : '' %>></div>
       </div>
+      <h2 style="margin-top:8px" id="fssp">Проверка ФССП</h2>
+      <p class="small muted" style="margin-top:0">Официальный API ФССП отключён, сайт закрыт капчей — автоматическая проверка идёт через поставщика данных.
+        Зарегистрируйтесь на <b>api-cloud.ru</b>, пополните баланс (оплата за каждый запрос) и вставьте ключ (token) из личного кабинета.
+        Повторная проверка того же клиента в течение 6 часов бесплатна — берётся из памяти.</p>
+      <div class="grid">
+        <div class="field col-4"><label for="fp">Поставщик</label>
+          <select class="input" id="fp" name="fssp_provider">
+            <option value="">не подключён (ручная проверка)</option>
+            <option value="api-cloud" <%= keys.fssp_provider === 'api-cloud' ? 'selected' : '' %>>api-cloud.ru</option>
+          </select></div>
+        <div class="field col-5"><label for="ft">Ключ (token)</label><input class="input" id="ft" name="fssp_token" placeholder="<%= keys.fssp_token || 'не указан' %>"></div>
+        <div class="field col-3"><label for="fr">Регион</label><input class="input" id="fr" name="fssp_region" placeholder="<%= keys.fssp_region || '-1 (все)' %>"><div class="hint">Обычно пусто — все регионы</div></div>
+      </div>
       <button class="btn btn-dark" type="submit">Сохранить ключи</button>
+    </form>
+    <form method="post" action="/admin/settings/fssp-test" class="card" autocomplete="off">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <h2>Проверить ФССП</h2>
+      <p class="small muted" style="margin-top:0">Проверка подключения на любом человеке, например на себе. Запрос платный, как обычная проверка.</p>
+      <% if (locals.fsspTest) { %>
+        <div class="alert <%= fsspTest.status === 'error' ? 'alert-error' : 'alert-ok' %>"><b><%= { ok: 'Долгов не найдено', hit: 'Найдены производства', error: 'Ошибка' }[fsspTest.status] || fsspTest.status %>.</b> <%= fsspTest.details %></div>
+        <% if (fsspTest.raw) { %><details class="small"><summary>Ответ поставщика (для разработчика)</summary><pre style="white-space:pre-wrap;word-break:break-all;max-height:240px;overflow:auto"><%= fsspTest.raw %></pre></details><% } %>
+      <% } %>
+      <div class="grid">
+        <div class="field col-4"><label for="tl">Фамилия</label><input class="input" id="tl" name="last_name"></div>
+        <div class="field col-4"><label for="tf">Имя</label><input class="input" id="tf" name="first_name"></div>
+        <div class="field col-4"><label for="tm">Отчество</label><input class="input" id="tm" name="middle_name"></div>
+        <div class="field col-6"><label for="tb">Дата рождения</label><input class="input" id="tb" name="birth_date" type="date"></div>
+      </div>
+      <button class="btn btn-outline" type="submit">Проверить</button>
     </form>
     <form method="post" action="/admin/settings/sms-test" class="card">
       <input type="hidden" name="_csrf" value="<%= csrf %>">

@@ -18,6 +18,8 @@ fi
 install -m 750 "$APP_DIR/deploy/backup.sh" /usr/local/bin/rassrochka-backup
 install -m 750 "$APP_DIR/deploy/update.sh" /usr/local/bin/rassrochka-update
 install -m 750 "$APP_DIR/deploy/fetch-code.sh" /usr/local/bin/rassrochka-fetch-code
+# защита от DDoS и перебора паролей (nginx, fail2ban) — обновляется вместе с сайтом
+bash "$APP_DIR/deploy/harden.sh" || echo "! Защита nginx не обновлена — сайт работает с прежними настройками"
 systemctl restart rassrochka
 sleep 3
 systemctl is-active --quiet rassrochka && echo "✓ Обновлено" || { journalctl -u rassrochka -n 40 --no-pager; exit 1; }

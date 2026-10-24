@@ -59,4 +59,4 @@
     </div>
   </div>
 </form>
-<script>window.MARKUP = <%- JSON.stringify(settings.markupPercent) %>; window.COMMISSION = <%- JSON.stringify({ rates: settings.commissionRates, base: settings.commissionBase }) %>;</script>
+<div hidden id="calc-config" data-markup="<%= settings.markupPercent %>" data-commission="<%= JSON.stringify({ rates: settings.commissionRates, base: settings.commissionBase }) %>"></div>

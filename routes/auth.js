@@ -22,19 +22,24 @@ router.get('/login', (req, res) => {
   res.render('auth/login', { title: 'Вход в личный кабинет', tab: 'login' });
 });
 
-router.post('/login', (req, res) => {
+const DUMMY_HASH = bcrypt.hashSync('dummy-password-for-timing', 10);
+
+router.post('/login', (req, res, next) => {
   const phone = u.normPhone(req.body.phone);
   const render = (error) => res.status(400).render('auth/login', { title: 'Вход', tab: 'login', error, form: { phone: req.body.phone } });
 
-  if (!u.rateLimit(`login:${req.ip}`, 10, 10 * 60e3)) return render('Слишком много попыток. Подождите 10 минут.');
-  const user = db.prepare('SELECT * FROM users WHERE phone = ?').get(phone);
-  if (!user || !bcrypt.compareSync(String(req.body.password || ''), user.password_hash)) {
-    return render('Неверный номер телефона или пароль');
+  // перебор пароля: 10 попыток за 10 минут с одного адреса и 20 в час на один номер (с любых адресов)
+  if (!u.rateLimit(`login:${req.ip}`, 10, 10 * 60e3) || !u.rateLimit(`login-phone:${phone}`, 20, 3600e3)) {
+    return render('Слишком много попыток. Подождите и попробуйте позже.');
   }
+  const user = db.prepare('SELECT * FROM users WHERE phone = ?').get(phone);
+  // пароль проверяется и для несуществующего номера — по времени ответа нельзя узнать, зарегистрирован ли номер
+  const passOk = bcrypt.compareSync(String(req.body.password || '').slice(0, 200), user ? user.password_hash : DUMMY_HASH);
+  if (!user || !passOk) return render('Неверный номер телефона или пароль');
   if (user.status === 'blocked') return render('Учётная запись заблокирована. Обратитесь к администратору.');
 
   req.session.regenerate((err) => {
-    if (err) throw err;
+    if (err) return next(err);
     req.session.userId = user.id;
     res.redirect(home(user));
   });
@@ -64,6 +69,7 @@ function readRegistration(body, { requirePassword }) {
   if (requirePassword) {
     const pass = String(body.password || '');
     if (pass.length < 8) errors.password = 'Минимум 8 символов';
+    else if (pass.length > 200) errors.password = 'Слишком длинный пароль';
     else if (pass !== body.password2) errors.password2 = 'Пароли не совпадают';
     data.password = pass;
     if (!body.agree) errors.agree = 'Необходимо согласие на обработку персональных данных';
@@ -85,7 +91,11 @@ router.get('/register', (req, res) => {
   res.render('auth/register', { title: 'Регистрация продавца', tab: 'register', ips: activeIps(), form: { ip_ids: [] } });
 });
 
-router.post('/register', (req, res) => {
+router.post('/register', (req, res, next) => {
+  if (!u.rateLimit(`register:${req.ip}`, 5, 3600e3)) {
+    return res.status(429).render('auth/register', { title: 'Регистрация продавца', tab: 'register', ips: activeIps(), form: { ...req.body, ip_ids: [] },
+      errors: {}, error: 'Слишком много регистраций с этого адреса. Попробуйте через час.' });
+  }
   const { data, errors } = readRegistration(req.body, { requirePassword: true });
   if (!errors.phone && db.prepare('SELECT 1 FROM users WHERE phone = ?').get(data.phone)) {
     errors.phone = 'Этот номер уже зарегистрирован';
@@ -105,7 +115,8 @@ router.post('/register', (req, res) => {
     return info.lastInsertRowid;
   })();
 
-  req.session.regenerate(() => {
+  req.session.regenerate((err) => {
+    if (err) return next(err);
     req.session.userId = id;
     u.flash(req, 'ok', 'Заявка на регистрацию отправлена администратору');
     res.redirect('/status');

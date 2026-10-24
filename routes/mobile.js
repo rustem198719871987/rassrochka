@@ -43,10 +43,19 @@ router.get('/:token', (req, res) => {
 
 const fields = upload.fields([...PASSPORT_KINDS.map((name) => ({ name, maxCount: 1 })), { name: 'pages', maxCount: MAX_PAGES }]);
 
-router.post('/:token', fields, async (req, res) => {
+// Ссылка проверяется до приёма файлов: без действующего токена фото даже не загружаются в память сервера
+function checkToken(req, res, next) {
   const s = loadSession(req.params.token);
   if (!s || s.expires_at < Date.now()) return res.status(410).json({ error: 'Ссылка устарела. Покажите на компьютере новый QR-код.' });
   if (s.status !== 'waiting' && s.status !== 'error') return res.status(409).json({ error: 'Фото по этой ссылке уже отправлены.' });
+  req.scan = s;
+  next();
+}
+
+router.post('/:token', checkToken, fields, async (req, res) => {
+  // повторная проверка после загрузки: пока шли файлы, по этой ссылке могли уже отправить фото
+  const s = loadSession(req.params.token);
+  if (!s || (s.status !== 'waiting' && s.status !== 'error')) return res.status(409).json({ error: 'Фото по этой ссылке уже отправлены.' });
 
   if (s.purpose === 'contract') return saveContract(s, req, res);
 

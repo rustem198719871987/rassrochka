@@ -70,7 +70,7 @@ function productValues(p) {
 function currentStep(a) {
   if (!a.client_filled_at) return 2;
   if (!a.pd_consent_signed_at) return 3;
-  if (!a.check_status) return 4;
+  if (!a.check_status || a.check_status === 'pending' || a.status === 'declined') return 4;
   return 5;
 }
 
@@ -296,6 +296,7 @@ router.get('/:id', async (req, res) => {
     contractPages: res.locals.docs.filter((d) => d.kind === 'contract_page'),
     ips: availableIps(req.user), schedule, qr, editable: editable(a),
     checkResult: a.check_result ? JSON.parse(a.check_result) : null,
+    checkDeadline: a.check_status === 'pending' ? Date.parse(a.checked_at.replace(' ', 'T') + 'Z') + 5 * 60e3 : null,
     fsspConfigured: checks.fsspConfigured(), fsspUrl: checks.FSSP_MANUAL_URL,
     devCode: req.session.devCode && req.session.devCode.appId === a.id ? req.session.devCode : null,
     form: { ...a, product_price: a.product_price / 100, down_payment: a.down_payment ? a.down_payment / 100 : '',
@@ -390,6 +391,11 @@ router.post('/:id/sms', async (req, res) => {
     u.flash(req, 'error', 'Слишком много SMS по этой заявке. Попробуйте позже.');
     return back(res, a, step);
   }
+  // SMS стоят денег: ограничение на продавца, чтобы через много заявок нельзя было разослать тысячи сообщений
+  if (!u.rateLimit(`sms-user:${req.user.id}`, 30, 3600e3) || !u.rateLimit(`sms-user-day:${req.user.id}`, 150, 24 * 3600e3)) {
+    u.flash(req, 'error', 'Превышен лимит SMS для вашей учётной записи. Попробуйте позже или обратитесь к администратору.');
+    return back(res, a, step);
+  }
   const text = purpose === 'contract'
     ? `Код {code} - подписание договора рассрочки ${a.number} на ${u.moneyFmt(a.total_amount).replace(' ', ' ')}. Никому не сообщайте код.`
     : 'Код {code} - подтверждение номера и согласие на обработку персональных данных (Рассрочка.Топ). Никому не сообщайте код.';
@@ -426,16 +432,33 @@ router.post('/:id/consent', (req, res) => {
 router.post('/:id/check', async (req, res) => {
   const a = req.app_;
   if (!editable(a) || !a.pd_consent_signed_at) return back(res, a, 4);
-  const manual = Boolean(req.body.fssp_manual);
-  if (!checks.fsspConfigured() && !manual) {
-    u.flash(req, 'error', 'Проверьте клиента на сайте ФССП и отметьте результат');
+  if (a.check_status === 'pending') return back(res, a, 4); // уже ждёт решения администратора
+  if (!u.rateLimit(`check:${a.id}`, 10, 3600e3)) {
+    u.flash(req, 'error', 'Слишком много проверок по заявке, попробуйте позже');
     return back(res, a, 4);
   }
-  const result = await checks.runChecks(a, { fsspManualConfirmed: manual });
+  const result = await checks.runChecks(a);
+  const status = { clean: 'approved', hit: 'declined', pending: 'draft' }[result.status];
   db.prepare(`UPDATE applications SET check_status = ?, check_result = ?, checked_at = datetime('now'), status = ?,
-              updated_at = datetime('now') WHERE id = ?`)
-    .run(result.status, JSON.stringify(result), result.status === 'clean' ? 'approved' : 'declined', a.id);
+              updated_at = datetime('now') WHERE id = ?`).run(result.status, JSON.stringify(result), status, a.id);
+  if (result.status === 'pending') notifyAdmins(a);
   res.redirect(`/app/${a.id}?step=${result.status === 'clean' ? 5 : 4}`);
+});
+
+// Администраторам — SMS о заявке, которая ждёт проверки ФССП (не чаще раза в 10 минут на заявку)
+function notifyAdmins(a) {
+  if (!u.rateLimit(`admin-notify:${a.id}`, 1, 10 * 60e3)) return;
+  const admins = db.prepare("SELECT phone FROM users WHERE role = 'admin' AND status <> 'blocked'").all();
+  for (const { phone } of admins) {
+    sms.sendSms(phone, `Рассрочка.Топ: заявка ${a.number} ждёт проверки ФССП. Продавец ожидает решения.`)
+      .catch((e) => console.error('SMS администратору не отправлено:', e.message));
+  }
+}
+
+// Продавец ждёт решения: страница спрашивает статус, пока проверка не завершится
+router.get('/:id/check-status', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ check_status: req.app_.check_status, status: req.app_.status });
 });
 
 // ---------- подписание договора ----------
@@ -443,6 +466,10 @@ router.post('/:id/sign', (req, res) => {
   const a = req.app_;
   if (a.status !== 'approved') {
     u.flash(req, 'error', 'Договор можно подписать только по одобренной заявке');
+    return back(res, a, 5);
+  }
+  if (!u.rateLimit(`code:${a.id}`, 15, 3600e3)) {
+    u.flash(req, 'error', 'Слишком много попыток');
     return back(res, a, 5);
   }
   if (!req.body.client_read) {

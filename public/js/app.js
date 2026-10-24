@@ -74,6 +74,50 @@
     if (codeEl.value) lookup();
   });
 
+  // ---------- подтверждения, автоотправка, имя выбранного файла (вместо onsubmit/onchange в разметке) ----------
+  document.addEventListener('submit', function (e) {
+    var msg = e.target.getAttribute && e.target.getAttribute('data-confirm');
+    if (msg && !window.confirm(msg)) e.preventDefault();
+  }, true);
+  document.querySelectorAll('input[data-autosubmit]').forEach(function (el) {
+    el.addEventListener('change', function () { if (el.form) el.form.submit(); });
+  });
+  document.querySelectorAll('input[data-file-label]').forEach(function (el) {
+    el.addEventListener('change', function () {
+      var label = el.closest('form').querySelector('[data-file-name]');
+      if (label) label.textContent = el.files[0] ? el.files[0].name : 'Выберите файл выписки';
+    });
+  });
+
+  // ---------- ожидание решения по проверке клиента: таймер 5 минут и автообновление ----------
+  var wait = document.querySelector('[data-check-wait]');
+  if (wait) {
+    var deadline = Number(wait.dataset.deadline);
+    var timerEl = wait.querySelector('[data-check-timer]');
+    var late = document.querySelector('[data-check-late]');
+    var tick = function () {
+      var left = Math.max(0, Math.round((deadline - Date.now()) / 1000));
+      timerEl.textContent = Math.floor(left / 60) + ':' + String(left % 60).padStart(2, '0');
+      if (!left && late) late.hidden = false;
+    };
+    tick();
+    setInterval(tick, 1000);
+    setInterval(function () {
+      fetch('/app/' + wait.dataset.app + '/check-status', { credentials: 'same-origin' })
+        .then(function (r) { return r.json(); })
+        .then(function (d) { if (d.check_status !== 'pending') location.href = '/app/' + wait.dataset.app; })
+        .catch(function () {});
+    }, 4000);
+  }
+  // очередь администратора обновляется сама, если он ничего не вводит
+  var auto = document.querySelector('[data-autorefresh]');
+  if (auto) {
+    setInterval(function () {
+      var el = document.activeElement;
+      if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName) || !el.value) location.reload();
+    }, Number(auto.dataset.autorefresh) * 1000);
+  }
+
   // ---------- кликабельные строки таблиц ----------
   document.querySelectorAll('tr[data-href]').forEach(function (tr) {
     tr.addEventListener('click', function (e) {
@@ -263,6 +307,15 @@
     });
   });
 
+  // копирование готового текста (данные клиента для ручной проверки ФССП)
+  document.querySelectorAll('[data-copy-text]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var text = btn.dataset.copyText;
+      var done = function () { btn.textContent = 'скопировано'; setTimeout(function () { btn.textContent = 'копировать'; }, 1500); };
+      if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, function () {});
+    });
+  });
+
   // ---------- живой расчёт рассрочки ----------
   var form = document.querySelector('[data-calc-form]');
   if (!form || !window.Calc) return;
@@ -278,7 +331,9 @@
     var down = rub((form.querySelector('[data-calc="down"]') || {}).value);
     var checked = form.querySelector('[data-calc="months"]:checked');
     var months = checked ? Number(checked.value) : 0;
-    var markup = Number(window.MARKUP);
+    var cfg = document.getElementById('calc-config');
+    var markup = Number(cfg && cfg.dataset.markup);
+    var COMMISSION = cfg && cfg.dataset.commission ? JSON.parse(cfg.dataset.commission) : null;
 
     var table = form.querySelector('[data-calc-table]');
     if (table) {
@@ -310,8 +365,8 @@
     out('total', money(c.total));
     out('down', money(c.downPayment));
     out('financed', money(c.financed));
-    if (window.COMMISSION) {
-      var cm = Calc.commission({ months: months, price: c.price, total: c.total, rates: window.COMMISSION.rates, base: window.COMMISSION.base });
+    if (COMMISSION) {
+      var cm = Calc.commission({ months: months, price: c.price, total: c.total, rates: COMMISSION.rates, base: COMMISSION.base });
       out('commission', money(cm.amount));
       out('rate', '(' + String(cm.percent).replace('.', ',') + '%)');
     }

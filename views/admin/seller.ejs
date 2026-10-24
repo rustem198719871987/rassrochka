@@ -63,7 +63,7 @@
 
 <% if (seller) { %>
   <div class="card soft">
-    <form method="post" action="/admin/sellers/<%= seller.id %>/password" class="actions" onsubmit="return confirm('Сгенерировать новый пароль?')">
+    <form method="post" action="/admin/sellers/<%= seller.id %>/password" class="actions" data-confirm="Сгенерировать новый пароль?">
       <%- hidden %><span class="muted">Продавец забыл пароль?</span><button class="btn btn-outline btn-sm" type="submit">Сбросить пароль</button>
     </form>
   </div>
