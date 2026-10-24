@@ -14,6 +14,7 @@ const commission = require('../lib/commission');
 const annulments = require('../lib/annulments');
 const analytics = require('../lib/analytics');
 const fssp = require('../lib/fssp');
+const mailbox = require('../lib/mailbox');
 const { setUserIps, PERSON_COLS } = require('./auth');
 
 const router = express.Router();
@@ -294,7 +295,7 @@ const stmtUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize:
 router.get('/statements', (req, res) => {
   const uploads = db.prepare(`SELECT s.*, (SELECT count(*) FROM bank_transactions t WHERE t.upload_id = s.id AND t.status IN ('suggested','unmatched')) AS open
                               FROM statement_uploads s ORDER BY s.id DESC LIMIT 50`).all();
-  res.render('admin/statements', { title: 'Выписки банка', uploads });
+  res.render('admin/statements', { title: 'Выписки банка', uploads, mailAddress: mailbox.address() });
 });
 
 router.post('/statements', (req, res) => {
@@ -488,6 +489,11 @@ const mask = (v) => (v ? `••••${String(v).slice(-4)}` : '');
 router.get('/settings', (req, res) => res.render('admin/settings', {
   title: 'Настройки',
   fsspOn: fssp.configured(),
+  mailAddress: mailbox.address(),
+  mailSenders: getSecret('mail_senders'),
+  mailLog: mailbox.recent(15),
+  mailSpam: mailbox.spamCount(),
+  mailSpamRecent: mailbox.spamRecent(),
   fsspProvider: fssp.provider(),
   fsspTest: (() => { const t = req.session.fsspTest; delete req.session.fsspTest; return t; })(),
   bkiOn: Boolean(process.env.BKI_API_URL),
@@ -515,6 +521,34 @@ router.post('/settings/integrations', (req, res) => {
   if (req.body.fssp_provider !== undefined) setSetting('fssp_provider', fssp.PROVIDERS[req.body.fssp_provider] ? req.body.fssp_provider : '');
   u.flash(req, 'ok', 'Настройки сервисов сохранены');
   res.redirect('/admin/settings');
+});
+
+// Почта для выписок: разрешённые отправители (адреса банка или @домен) и проверка ящика вручную
+router.post('/settings/mail', (req, res) => {
+  const list = String(req.body.mail_senders || '').toLowerCase().split(/[\s,;]+/).filter(Boolean);
+  const bad = list.filter((s) => !/^([^@\s]+)?@[a-z0-9.-]+\.[a-z]{2,}$/.test(s));
+  if (bad.length) u.flash(req, 'error', `Не похоже на адрес или домен: ${bad.join(', ')}. Пример: vypiska@bank.ru или @bank.ru`);
+  else {
+    setSetting('mail_senders', list.join('\n'));
+    u.flash(req, 'ok', list.length ? `Разрешённых отправителей: ${list.length}` : 'Список отправителей очищен — письма с выписками не принимаются');
+  }
+  res.redirect('/admin/settings#mail');
+});
+
+router.post('/settings/mail-allow', (req, res) => {
+  const addr = u.str(req.body.address, 200).toLowerCase();
+  const list = String(getSecret('mail_senders') || '').split(/\s+/).filter(Boolean);
+  if (/^[^@\s]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(addr) && !list.includes(addr)) {
+    setSetting('mail_senders', [...list, addr].join('\n'));
+    u.flash(req, 'ok', `${addr} добавлен в разрешённые. Попросите банк прислать выписку ещё раз или дождитесь следующей.`);
+  }
+  res.redirect('/admin/settings#mail');
+});
+
+router.post('/settings/mail-check', async (req, res) => {
+  const r = await mailbox.processInbox();
+  u.flash(req, 'ok', r.processed ? `Обработано писем: ${r.processed} — результат в журнале ниже` : 'Новых писем нет');
+  res.redirect('/admin/settings#mail');
 });
 
 // Проверка подключения ФССП на любом человеке (например, на себе): показывает итог и начало ответа поставщика

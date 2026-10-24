@@ -216,6 +216,9 @@ else
   log "Защита от DDoS и перебора паролей"
   PORT="$PORT" SITE=/etc/nginx/sites-available/rassrochka ENV_FILE="$ENV_FILE" bash "$APP_DIR/deploy/harden.sh" \
     || echo "Защита не включена — сайт работает без неё. Пришлите вывод выше разработчику."
+  log "Почта для выписок банка"
+  ENV_FILE="$ENV_FILE" DATA_DIR="$DATA_DIR" APP_USER="$APP_USER" bash "$APP_DIR/deploy/mail.sh" \
+    || echo "Почта для выписок не настроена — выписки можно загружать вручную."
   systemctl restart rassrochka
 
   log "Проверка"

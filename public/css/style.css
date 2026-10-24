@@ -384,3 +384,6 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .check-timer { font: 800 28px/1 Montserrat, sans-serif; font-variant-numeric: tabular-nums; }
 .fssp-decision .reject-form .input { max-width: 220px; }
 .check-item.pending .ico { background: var(--yellow-soft); color: #6b5800; }
+.mail-log { margin-top: 14px; border-top: 1px solid var(--line); }
+.mail-row { padding: 10px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.mail-row .pill { margin-right: 6px; }

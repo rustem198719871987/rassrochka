@@ -70,6 +70,53 @@
       </div>
       <button class="btn btn-dark" type="submit">Сохранить ключи</button>
     </form>
+    <div class="card" id="mail">
+      <h2>Почта для выписок банка</h2>
+      <% if (mailAddress) { %>
+        <p style="margin-top:0">Адрес: <b><%= mailAddress %></b> <button type="button" class="link-btn" data-copy-text="<%= mailAddress %>">копировать</button></p>
+        <p class="small muted">В интернет-банке включите ежедневную отправку выписки на этот адрес в формате <b>1С</b> (файл .txt, «1CClientBankExchange»).
+          Сайт проверяет почту каждые 2 минуты и сверяет платежи так же, как при ручной загрузке. Принимаются только письма
+          от адресов из списка ниже и только с подтверждённой подписью банка (DKIM/SPF) — подделать выписку нельзя.</p>
+      <% } else { %>
+        <div class="alert alert-warn">Почтовый сервер ещё не настроен. Выполните на сервере <b>rassrochka-update</b>, затем в DNS домена
+          добавьте MX-запись (см. инструкцию в README) — после этого здесь появится адрес.</div>
+      <% } %>
+      <form method="post" action="/admin/settings/mail">
+        <input type="hidden" name="_csrf" value="<%= csrf %>">
+        <div class="field"><label for="ms">Разрешённые отправители</label>
+          <textarea class="input" id="ms" name="mail_senders" rows="2" placeholder="vypiska@bank.ru или @bank.ru"><%= mailSenders %></textarea>
+          <div class="hint">Адрес, с которого банк присылает выписку (посмотрите в первом письме), или весь домен банка через @. По одному в строке.</div></div>
+        <div class="actions">
+          <button class="btn btn-dark" type="submit">Сохранить</button>
+          <button class="btn btn-outline" type="submit" formaction="/admin/settings/mail-check">Проверить почту сейчас</button>
+        </div>
+      </form>
+      <% if (mailSpam) { %><p class="small muted" style="margin:12px 0 0">Удалено писем от посторонних отправителей (спам): <b><%= mailSpam %></b></p><% } %>
+      <% if (mailSpamRecent.length) { %>
+        <details class="small" style="margin-top:6px"><summary class="muted">Последние посторонние отправители — если среди них банк, разрешите его</summary>
+          <% for (const r of mailSpamRecent) { %>
+            <form method="post" action="/admin/settings/mail-allow" class="mail-row">
+              <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="address" value="<%= r.from %>">
+              <b><%= r.from %></b> <span class="muted">«<%= r.subject %>», <%= dateTime(r.at) %></span>
+              <button class="link-btn" type="submit">разрешить</button>
+            </form>
+          <% } %>
+        </details>
+      <% } %>
+      <% if (mailLog.length) { %>
+        <% const MS = { imported: ['approved', 'Выписка загружена'], rejected: ['declined', 'Отклонено'], no_statement: ['draft', 'Нет выписки'], error: ['declined', 'Ошибка'] }; %>
+        <div class="mail-log">
+          <% for (const m of mailLog) { const st = m.stats ? JSON.parse(m.stats) : null; %>
+            <div class="mail-row">
+              <div class="small muted"><%= dateTime(m.received_at) %> · <%= m.mail_from || '—' %></div>
+              <div class="small"><span class="pill <%= MS[m.status][0] %>"><%= MS[m.status][1] %></span>
+                <% if (m.upload_id) { %><a href="/admin/statements/<%= m.upload_id %>">открыть</a><% } %>
+                <%= st ? `Поступлений: ${st.incoming}, зачтено: ${st.matched}, на проверку: ${st.suggested + st.unmatched}` : m.reason %></div>
+            </div>
+          <% } %>
+        </div>
+      <% } %>
+    </div>
     <form method="post" action="/admin/settings/fssp-test" class="card" autocomplete="off">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
       <h2>Проверить ФССП</h2>
