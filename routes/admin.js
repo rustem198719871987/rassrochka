@@ -529,6 +529,19 @@ router.post('/settings', (req, res) => {
   res.redirect('/admin/settings');
 });
 
+router.post('/settings/phone', (req, res) => {
+  const newPhone = u.normPhone(req.body.phone);
+  if (!bcrypt.compareSync(String(req.body.current || ''), req.user.password_hash)) u.flash(req, 'error', 'Текущий пароль неверен');
+  else if (!u.isPhone(newPhone)) u.flash(req, 'error', 'Введите номер в формате +7 (XXX) XXX-XX-XX');
+  else if (newPhone === req.user.phone) u.flash(req, 'error', 'Это ваш текущий номер');
+  else if (db.prepare('SELECT 1 FROM users WHERE phone = ? AND id <> ?').get(newPhone, req.user.id)) u.flash(req, 'error', 'Этот номер уже занят продавцом');
+  else {
+    db.prepare("UPDATE users SET phone = ?, updated_at = datetime('now') WHERE id = ?").run(newPhone, req.user.id);
+    u.flash(req, 'ok', `Телефон изменён. Теперь входите с номером ${u.phoneFmt(newPhone)}`);
+  }
+  res.redirect('/admin/settings');
+});
+
 router.post('/settings/password', (req, res) => {
   const { current, password, password2 } = req.body;
   if (!bcrypt.compareSync(String(current || ''), req.user.password_hash)) u.flash(req, 'error', 'Текущий пароль неверен');

@@ -72,6 +72,14 @@
       <p class="small muted" style="margin-top:0">Проверка запускается автоматически каждые 30 минут. SMS уходят с 9:00 до 21:00 по Москве.</p>
       <button class="btn btn-outline" type="submit">Запустить проверку сейчас</button>
     </form>
+    <form method="post" action="/admin/settings/phone" class="card">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <h2>Телефон администратора</h2>
+      <p class="small muted" style="margin-top:0">Это логин для входа. Сейчас: <b><%= phone(user.phone) %></b></p>
+      <div class="field"><label for="ap">Новый номер телефона</label><input class="input" id="ap" type="tel" name="phone" placeholder="+7 (___) ___-__-__" data-mask="phone" autocomplete="tel"></div>
+      <div class="field"><label for="apc">Текущий пароль</label><input class="input" id="apc" type="password" name="current" autocomplete="current-password"></div>
+      <button class="btn btn-outline" type="submit">Сменить телефон</button>
+    </form>
     <form method="post" action="/admin/settings/password" class="card">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
       <h2>Пароль администратора</h2>
