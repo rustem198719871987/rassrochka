@@ -36,7 +36,7 @@
       <h2>Подключённые сервисы</h2>
       <div class="check-items">
         <div class="check-item <%= smsDev ? 'not_configured' : 'ok' %>"><span class="ico"><%= smsDev ? '?' : '✓' %></span><div><b>SMS (SMS.ru)</b><div class="small muted"><%= smsDev ? 'Тестовый режим: код показывается продавцу на экране. Укажите API-ключ ниже' : 'Подключено — коды и уведомления уходят клиентам' %></div></div></div>
-        <div class="check-item ok"><span class="ico">✓</span><div><b>Распознавание паспорта</b><div class="small muted"><%= ocrYandex ? 'Yandex Vision: все поля разворота и адрес прописки' : 'Встроенное: ФИО, дата рождения, серия, номер, дата выдачи, код подразделения. Для «кем выдан», места рождения и прописки подключите Yandex Vision' %></div></div></div>
+        <div class="check-item ok"><span class="ico">✓</span><div><b>Распознавание паспорта</b><div class="small muted"><%= ocrYandex ? 'Yandex Vision (платно): все поля разворота и адрес прописки' : 'Встроенное, бесплатно: ФИО, дата рождения, серия и номер, дата и код выдачи, «кем выдан» (по справочнику кодов), место рождения, адрес прописки. Yandex Vision не нужен' %></div></div></div>
         <div class="check-item <%= locals.fsspOn ? 'ok' : 'not_configured' %>"><span class="ico"><%= locals.fsspOn ? '✓' : '?' %></span><div><b>Проверка ФССП</b><div class="small muted"><%= locals.fsspOn ? 'Подключено' : 'Ручная проверка продавцом. Для автоматической укажите FSSP_API_URL в .env' %></div></div></div>
         <div class="check-item <%= locals.bkiOn ? 'ok' : 'not_configured' %>"><span class="ico"><%= locals.bkiOn ? '✓' : '?' %></span><div><b>Банковские стоп-листы / БКИ</b><div class="small muted"><%= locals.bkiOn ? 'Подключено' : 'Не подключено. Укажите BKI_API_URL в .env' %></div></div></div>
       </div>
@@ -49,8 +49,8 @@
         <div class="field col-8"><label for="k1">API-ключ (api_id)</label><input class="input" id="k1" name="sms_ru_api_id" placeholder="<%= keys.sms_ru_api_id || 'не указан' %>" <%= fromEnv.sms_ru_api_id ? 'disabled' : '' %>><% if (fromEnv.sms_ru_api_id) { %><div class="hint">Задан в .env</div><% } %></div>
         <div class="field col-4"><label for="k2">Имя отправителя</label><input class="input" id="k2" name="sms_from" placeholder="<%= keys.sms_from || 'по умолчанию' %>" <%= fromEnv.sms_from ? 'disabled' : '' %>><div class="hint">Согласуйте в SMS.ru</div></div>
       </div>
-      <h2 style="margin-top:8px">Yandex Vision OCR</h2>
-      <p class="small muted" style="margin-top:0">Yandex Cloud → сервисный аккаунт с ролью <b>ai.vision.user</b> → API-ключ. Каталог — ID каталога (folder id).</p>
+      <h2 style="margin-top:8px">Yandex Vision OCR <span class="small muted" style="font-weight:400">— необязательно</span></h2>
+      <p class="small muted" style="margin-top:0">Паспорт и так распознаётся бесплатно встроенным модулем. Yandex Vision (платный) может читать плохие фото чуть точнее. Чтобы отключить его, впишите «-» в поле «API-ключ» и сохраните. Yandex Cloud → сервисный аккаунт с ролью <b>ai.vision.user</b> → API-ключ. Каталог — ID каталога (folder id).</p>
       <div class="grid">
         <div class="field col-6"><label for="k3">API-ключ</label><input class="input" id="k3" name="yandex_api_key" placeholder="<%= keys.yandex_api_key || 'не указан' %>" <%= fromEnv.yandex_api_key ? 'disabled' : '' %>></div>
         <div class="field col-6"><label for="k4">ID каталога</label><input class="input" id="k4" name="yandex_folder_id" placeholder="<%= keys.yandex_folder_id || 'не указан' %>" <%= fromEnv.yandex_folder_id ? 'disabled' : '' %>></div>

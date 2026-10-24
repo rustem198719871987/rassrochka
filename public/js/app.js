@@ -29,6 +29,51 @@
     el.addEventListener('input', function () { el.value = fn(el.value); });
   });
 
+  // ---------- «кем выдан» по коду подразделения (справочник на сервере) ----------
+  function showIssuedOptions(by, options) {
+    var field = by.closest('.field');
+    var box = field.querySelector('.fms-options');
+    if (box) box.remove();
+    if (!options || options.length < 2) return;
+    box = document.createElement('div');
+    box.className = 'fms-options hint';
+    box.appendChild(document.createTextNode('Варианты по коду подразделения — выберите как в паспорте: '));
+    options.forEach(function (name) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'link-btn';
+      b.textContent = name;
+      b.addEventListener('click', function () { by.value = name; by.dispatchEvent(new Event('input', { bubbles: true })); });
+      box.appendChild(b);
+    });
+    field.appendChild(box);
+  }
+  document.querySelectorAll('[name="passport_dept_code"]').forEach(function (codeEl) {
+    var form = codeEl.form;
+    var by = form && form.querySelector('[name="passport_issued_by"]');
+    if (!by) return;
+    var last = '';
+    function lookup() {
+      if (!/^\d{3}-\d{3}$/.test(codeEl.value) || codeEl.value === last) return;
+      last = codeEl.value;
+      var date = form.querySelector('[name="passport_issue_date"]');
+      fetch('/api/fms?code=' + codeEl.value + '&date=' + encodeURIComponent(date ? date.value : ''))
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          if (!d.value) return showIssuedOptions(by, []);
+          if (!by.value.trim()) {
+            by.value = d.value;
+            var f = by.closest('.field');
+            if (f) { f.classList.remove('has-error'); f.classList.add(d.options.length > 1 ? 'uncertain' : 'autofilled'); }
+          }
+          showIssuedOptions(by, d.options);
+        })
+        .catch(function () {});
+    }
+    codeEl.addEventListener('input', lookup);
+    if (codeEl.value) lookup();
+  });
+
   // ---------- кликабельные строки таблиц ----------
   document.querySelectorAll('tr[data-href]').forEach(function (tr) {
     tr.addEventListener('click', function (e) {

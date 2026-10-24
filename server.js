@@ -7,6 +7,7 @@ const u = require('./lib/util');
 const sms = require('./lib/sms');
 const payments = require('./lib/payments');
 const jobs = require('./lib/jobs');
+const fms = require('./lib/fms');
 
 ensureAdmin();
 
@@ -37,6 +38,13 @@ const assetVersion = require('crypto').createHash('sha1')
 app.use((req, res, next) => { res.locals.v = assetVersion; next(); });
 app.use(express.urlencoded({ extended: true, limit: '200kb' }));
 
+
+// «Кем выдан» по коду подразделения — подсказка в анкетах из открытого справочника
+app.get('/api/fms', (req, res) => {
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(req.query.date || '') ? req.query.date : undefined;
+  const r = fms.issuedBy(req.query.code, { issueDate: date });
+  res.json(r ? { value: r.value, options: r.options } : { value: null, options: [] });
+});
 
 // Страница загрузки фото с телефона: вход по одноразовой ссылке, без сессии и CSRF
 app.use('/m', require('./routes/mobile'));

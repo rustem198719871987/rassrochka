@@ -252,6 +252,9 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .field.autofilled .input { background: var(--yellow-soft); }
 .field.uncertain .input { background: var(--warn-soft); border-bottom-color: var(--warn); }
 .field.uncertain label::after { content: ' · проверьте'; color: var(--warn); font-weight: 700; }
+.fms-options { margin-top: 6px; line-height: 1.9; }
+.fms-options .link-btn { display: inline; margin: 0 6px 0 0; padding: 1px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--white); color: var(--ink); font: inherit; font-size: 12px; cursor: pointer; text-align: left; }
+.fms-options .link-btn:hover { border-color: var(--black); background: var(--yellow-soft); }
 .doc-thumbs { display: flex; gap: 12px; flex-wrap: wrap; }
 .doc-thumb { display: flex; flex-direction: column; gap: 6px; width: 140px; text-decoration: none; font-size: 12.5px; font-weight: 600; color: var(--ink); }
 .doc-thumb img { width: 140px; height: 100px; object-fit: cover; border-radius: 10px; border: 1px solid var(--line); background: var(--surface); }
