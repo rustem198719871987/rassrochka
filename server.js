@@ -16,6 +16,18 @@ app.set('views', path.join(__dirname, 'views'));
 app.set('trust proxy', 1);
 app.disable('x-powered-by');
 
+// Сайт закрыт от поисковых систем: запрет индексации на всех ответах, включая файлы и страницы оплаты
+app.use((req, res, next) => {
+  res.set({
+    'X-Frame-Options': 'DENY',
+    'X-Content-Type-Options': 'nosniff',
+    'Referrer-Policy': 'same-origin',
+    'X-Robots-Tag': 'noindex, nofollow, noarchive, nosnippet',
+  });
+  next();
+});
+app.get('/robots.txt', (req, res) => res.type('text/plain').send('User-agent: *\nDisallow: /\n'));
+
 app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
 
 // Версия стилей и скриптов: меняется при обновлении сайта, чтобы браузер не показывал старые файлы
@@ -25,14 +37,6 @@ const assetVersion = require('crypto').createHash('sha1')
 app.use((req, res, next) => { res.locals.v = assetVersion; next(); });
 app.use(express.urlencoded({ extended: true, limit: '200kb' }));
 
-app.use((req, res, next) => {
-  res.set({
-    'X-Frame-Options': 'DENY',
-    'X-Content-Type-Options': 'nosniff',
-    'Referrer-Policy': 'same-origin',
-  });
-  next();
-});
 
 // Страница загрузки фото с телефона: вход по одноразовой ссылке, без сессии и CSRF
 app.use('/m', require('./routes/mobile'));
