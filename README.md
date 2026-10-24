@@ -182,6 +182,7 @@ curl -fsSL -H "Authorization: token ТОКЕН" https://raw.githubusercontent.co
 
 С доменом и HTTPS (A-запись домена должна указывать на сервер): добавьте перед `bash` переменные
 `DOMAIN=rassrochka.top EMAIL=почта@mail.ru`. Повторный запуск безопасен — так же подключается домен позже.
+Если GitHub с сервера не отвечает, добавьте `SKIP_CODE=1` — домен подключится без скачивания кода.
 
 Скрипт ставит Node.js 22, nginx, службу systemd с автоперезапуском, файрвол (SSH, HTTP, HTTPS),
 сертификат Let's Encrypt, ежедневные резервные копии в `/var/backups/rassrochka` (03:30, 14 дней).

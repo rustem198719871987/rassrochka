@@ -124,10 +124,15 @@ else
 fi
 FETCH_EOF
 chmod 750 "$FETCH"
-REPO_URL="$REPO_URL" BRANCH="$BRANCH" APP_DIR="$APP_DIR" APP_USER="$APP_USER" GITHUB_TOKEN="${GITHUB_TOKEN:-}" "$FETCH"
+# SKIP_CODE=1 — оставить уже установленный код (например, только подключить домен, если GitHub не отвечает)
+if [ "${SKIP_CODE:-0}" = "1" ] && [ -f "$APP_DIR/server.js" ]; then
+  echo "Код не скачиваю (SKIP_CODE=1), оставляю установленный"
+else
+  REPO_URL="$REPO_URL" BRANCH="$BRANCH" APP_DIR="$APP_DIR" APP_USER="$APP_USER" GITHUB_TOKEN="${GITHUB_TOKEN:-}" "$FETCH"
 
-log "Зависимости"
-(cd "$APP_DIR" && sudo -u "$APP_USER" HOME="$APP_DIR" npm ci --omit=dev --no-audit --no-fund --loglevel=error)
+  log "Зависимости"
+  (cd "$APP_DIR" && sudo -u "$APP_USER" HOME="$APP_DIR" npm ci --omit=dev --no-audit --no-fund --loglevel=error)
+fi
 
 log "Настройки (${ENV_FILE})"
 if [ ! -f "$ENV_FILE" ]; then
