@@ -43,7 +43,6 @@ h3 { font-size: 16px; margin: 0 0 10px; font-weight: 700; }
 
 /* ---------- страница входа ---------- */
 .auth-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 40px; border-bottom: 3px solid var(--yellow); background: var(--white); }
-.auth-header .help { font-size: 14px; color: var(--muted); }
 .auth-page { min-height: calc(100vh - 70px); display: flex; justify-content: center; align-items: flex-start; padding: 48px 16px 60px; background: var(--white); }
 .auth-card { width: 100%; max-width: 560px; background: var(--white); border: 1px solid var(--line); border-radius: 24px; box-shadow: var(--shadow); padding: 36px 48px 40px; }
 .auth-card.wide { max-width: 860px; }
@@ -349,7 +348,6 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .grid { grid-template-columns: 1fr; }
   .grid > * { grid-column: span 1 !important; }
   .auth-header { padding: 12px 16px; }
-  .auth-header .help { display: none; }
   .auth-card { padding: 24px 20px 28px; border-radius: 20px; }
   .kv { grid-template-columns: 1fr; gap: 2px; }
   .sms-log li { grid-template-columns: minmax(0, 1fr); gap: 4px; }
