@@ -1,0 +1,50 @@
+<%- include('../partials/head') %>
+<header class="p-head client-head">
+  <%- include('../partials/logo', { inverse: true }) %>
+  <form method="post" action="/client/logout"><input type="hidden" name="_csrf" value="<%= csrf %>"><button class="link-btn" type="submit">Выйти</button></form>
+</header>
+<div class="p-wrap">
+  <div>
+    <h1 style="margin-bottom:2px">Рассрочка <%= a.number %></h1>
+    <div class="muted"><%= fio(a) %> · <%= a.product_name %></div>
+  </div>
+
+  <% if (apps.length > 1) { %>
+    <div class="client-tabs">
+      <% for (const x of apps) { %>
+        <a class="<%= x.id === a.id ? 'active' : '' %>" href="/client?c=<%= x.id %>"><%= x.number %><span><%= x.status === 'closed' ? 'погашена' : x.product_name %></span></a>
+      <% } %>
+    </div>
+  <% } %>
+
+  <%- include('../pay/_due') %>
+
+  <% if (sbpQr) { %>
+    <div class="p-card sbp-card">
+      <h3>Оплатить через СБП</h3>
+      <p class="small muted" style="margin-top:0">Без комиссии, из приложения любого банка. Сумма к оплате: <b style="color:var(--ink)"><%= money(toPay) %></b> — введите её в приложении банка.</p>
+      <a class="btn btn-primary btn-lg btn-block" href="<%= ip.sbp_url %>" target="_blank" rel="noopener noreferrer">Оплатить через СБП</a>
+      <div class="sbp-qr"><img src="<%= sbpQr %>" alt="QR-код СБП"><span class="small muted">или отсканируйте камерой телефона</span></div>
+      <p class="small muted" style="margin-bottom:0">Платёж появится в графике после сверки с банком — обычно на следующий рабочий день.</p>
+    </div>
+  <% } %>
+
+  <%- include('../pay/_body', { skipDue: true }) %>
+
+  <div class="p-card">
+    <h3>Условия рассрочки</h3>
+    <div class="row"><span class="muted">Сумма оформления</span><b class="mono"><%= money(a.total_amount) %></b></div>
+    <div class="row"><span class="muted">Стоимость товара</span><span class="mono"><%= money(a.product_price) %></span></div>
+    <% if (a.down_payment) { %><div class="row"><span class="muted">Первый взнос</span><span class="mono"><%= money(a.down_payment) %></span></div><% } %>
+    <div class="row"><span class="muted">Срок</span><span><%= a.months %> мес. · <%= money(a.monthly_payment) %> в месяц</span></div>
+    <div class="row"><span class="muted">Дата договора</span><span><%= date(a.contract_signed_at) %></span></div>
+    <div class="row"><span class="muted">Оплачено</span><b class="mono" style="color:var(--ok)"><%= money(paid + (a.down_payment || 0)) %></b></div>
+    <div class="row"><span class="muted">Осталось</span><b class="mono"><%= money(left) %></b></div>
+    <div class="progress"><span style="width:<%= Math.round(100 * (a.total_amount - left) / a.total_amount) %>%"></span></div>
+    <p class="small" style="margin-bottom:0"><a href="/client/contract/<%= a.id %>" target="_blank" rel="noopener">Открыть договор</a></p>
+  </div>
+
+</div>
+<script src="/static/js/app.js?v=<%= locals.v %>"></script>
+</body>
+</html>

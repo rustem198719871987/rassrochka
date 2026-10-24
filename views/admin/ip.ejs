@@ -27,6 +27,13 @@
       <%- include('../partials/field', { name: 'corr_account', label: 'Корреспондентский счёт', req: true, col: 'col-6', attrs: 'inputmode="numeric" maxlength="20" data-mask="digits"' }) %>
     </div>
   </fieldset>
+  <fieldset>
+    <legend>Оплата через СБП</legend>
+    <div class="grid">
+      <%- include('../partials/field', { name: 'sbp_url', label: 'Ссылка СБП из банка (необязательно)', placeholder: 'https://qr.nspk.ru/…',
+        hint: 'В интернет-банке ИП: «СБП» → «QR-код / платёжная ссылка» (сумму вводит клиент). Клиенты увидят кнопку «Оплатить через СБП» в личном кабинете. Такие оплаты приходят в выписке без номера договора — сайт найдёт клиента по ФИО и предложит зачесть.' }) %>
+    </div>
+  </fieldset>
   <button class="btn btn-dark btn-lg" type="submit"><%= ip ? 'Сохранить' : 'Добавить ИП' %></button>
 </form>
 <% if (ip) { %>

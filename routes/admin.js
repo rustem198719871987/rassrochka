@@ -149,7 +149,7 @@ router.post('/sellers/:sellerId/password', (req, res) => {
 });
 
 // ---------- ИП ----------
-const IP_COLS = ['name', 'full_name', 'inn', 'ogrnip', 'address', 'bank_name', 'bik', 'account', 'corr_account', 'phone', 'email'];
+const IP_COLS = ['name', 'full_name', 'inn', 'ogrnip', 'address', 'bank_name', 'bik', 'account', 'corr_account', 'phone', 'email', 'sbp_url'];
 
 function readIp(body) {
   const errors = {};
@@ -166,6 +166,9 @@ function readIp(body) {
   if (!/^\d{9}$/.test(d.bik)) errors.bik = 'БИК — 9 цифр';
   if (!/^\d{20}$/.test(d.account)) errors.account = 'Расчётный счёт — 20 цифр';
   if (!/^\d{20}$/.test(d.corr_account)) errors.corr_account = 'Корр. счёт — 20 цифр';
+  // ссылка СБП открывается у клиента — только https-адрес, без пробелов и кавычек
+  if (d.sbp_url && !/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(\/[^\s"'<>]*)?$/i.test(d.sbp_url)) errors.sbp_url = 'Ссылка должна начинаться с https://';
+  d.sbp_url = d.sbp_url || null;
   return { d, errors };
 }
 

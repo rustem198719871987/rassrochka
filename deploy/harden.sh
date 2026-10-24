@@ -66,8 +66,8 @@ client_body_timeout 60s;
 send_timeout 60s;
 keepalive_timeout 30s;
 
-# вход и регистрация: перебор паролей
-location ~ ^/(login|register)$ {
+# вход, регистрация и вход клиента по SMS: перебор паролей и кодов
+location ~ ^/(login|register|client/code|client/login)$ {
     limit_req zone=rt_auth burst=5 nodelay;
     limit_req zone=rt_req burst=100 nodelay;
     include snippets/rassrochka-proxy.conf;

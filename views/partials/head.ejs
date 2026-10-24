@@ -8,4 +8,4 @@
   <link rel="icon" href="/static/img/logo-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/css/style.css?v=<%= locals.v %>">
 </head>
-<body>
+<body<% if (locals.bodyClass) { %> class="<%= bodyClass %>"<% } %>>

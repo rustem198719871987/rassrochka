@@ -23,7 +23,7 @@ router.get('/:token', async (req, res) => {
   const toPay = debt.overdue || (next ? next.remaining : 0);
   const qr = toPay ? await paymentQr(ip, { sum: toPay, purpose: `Оплата по договору рассрочки ${a.number}`, payer: a }) : null;
   res.render('pay/page', {
-    title: `Рассрочка ${a.number}`, a, ip, schedule, next, debt, toPay, qr,
+    title: `Рассрочка ${a.number}`, bodyClass: 'client-page', a, ip, schedule, next, debt, toPay, qr,
     left: schedule.reduce((s, p) => s + p.remaining, 0),
     settings: getSettings(), money: u.moneyFmt, date: u.dateFmt, phone: u.phoneFmt, fioShort: u.fioShort, daysLabel: payments.daysLabel, flash: null,
   });

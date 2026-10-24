@@ -1,0 +1,31 @@
+<%# Срок и сумма, QR-код, график и реквизиты — страница по ссылке из SMS и личный кабинет %>
+  <% if (!locals.skipDue) { %><%- include('_due') %><% } %>
+  <% if (qr) { %>
+    <div class="p-card qr-box">
+      <h3>Оплатить по QR-коду</h3>
+      <img src="<%= qr %>" alt="QR-код для оплаты">
+      <p class="small muted">Сохраните QR-код или покажите экран: в приложении банка выберите «Оплата по QR». Реквизиты и сумма <%= money(toPay) %> заполнятся сами.</p>
+    </div>
+  <% } %>
+
+  <div class="p-card">
+    <h3>График платежей</h3>
+    <% for (const p of schedule) { %>
+      <div class="row">
+        <span><%= p.n %>. <%= date(p.due_date) %><br><span class="small muted"><%= daysLabel(p) %></span></span>
+        <b class="mono"><%= p.state === 'paid' ? '✓ ' : '' %><%= money(p.state === 'paid' ? p.amount : p.remaining) %></b>
+      </div>
+    <% } %>
+    <div class="row"><span>Осталось выплатить</span><b class="mono"><%= money(left) %></b></div>
+  </div>
+
+  <div class="p-card">
+    <h3>Реквизиты для перевода</h3>
+    <div class="row"><span class="muted">Получатель</span><b style="text-align:right"><%= ip.full_name %></b></div>
+    <div class="row"><span class="muted">ИНН</span><b class="mono"><%= ip.inn %></b></div>
+    <div class="row"><span class="muted">Счёт</span><b class="mono" style="overflow-wrap:anywhere"><%= ip.account %></b></div>
+    <div class="row"><span class="muted">Банк</span><b style="text-align:right"><%= ip.bank_name %></b></div>
+    <div class="row"><span class="muted">БИК</span><b class="mono"><%= ip.bik %></b></div>
+    <div class="row"><span class="muted">Назначение</span><b style="text-align:right">Оплата по договору рассрочки <%= a.number %></b></div>
+    <p class="small muted" style="margin-bottom:0">Обязательно укажите номер договора <b><%= a.number %></b> в назначении платежа. Оплатить также можно наличными в магазине.<% if (ip.phone) { %> Вопросы: <%= phone(ip.phone) %>.<% } %></p>
+  </div>

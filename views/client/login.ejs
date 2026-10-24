@@ -1,0 +1,40 @@
+<%- include('../partials/head') %>
+<header class="p-head"><%- include('../partials/logo', { inverse: true }) %></header>
+<div class="p-wrap" style="max-width:440px">
+  <div>
+    <h1 style="margin-bottom:2px">Личный кабинет</h1>
+    <div class="muted">График платежей, сумма рассрочки и оплата онлайн</div>
+  </div>
+  <% if (!available) { %>
+    <div class="p-card"><div class="alert alert-warn" style="margin:0">Вход в личный кабинет временно недоступен. Оплатить можно по ссылке из SMS или в магазине.</div></div>
+  <% } else if (!pending) { %>
+    <form method="post" action="/client/code" class="p-card">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+      <div class="field"><label for="cn">Номер договора</label>
+        <input class="input" id="cn" name="number" value="<%= form.number || '' %>" placeholder="РТ-26-000012" autocomplete="off" required>
+        <div class="hint">Указан в договоре и в SMS после оформления</div></div>
+      <div class="field"><label for="cp">Телефон, указанный в договоре</label>
+        <input class="input" id="cp" name="phone" type="tel" value="<%= form.phone || '' %>" placeholder="+7 (___) ___-__-__" data-mask="phone" autocomplete="tel" required></div>
+      <button class="btn btn-primary btn-lg btn-block" type="submit">Получить код по SMS</button>
+    </form>
+  <% } else { %>
+    <form method="post" action="/client/login" class="p-card">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <% if (error) { %><div class="alert alert-error"><%= error %></div><% } %>
+      <p style="margin-top:0">Код отправлен на <b><%= pending.masked %></b> для договора <b><%= pending.number %></b>.</p>
+      <% if (devCode) { %><div class="alert alert-info">Тестовый режим (SMS.ru не подключён): код <b class="dev-code"><%= devCode %></b></div><% } %>
+      <div class="field"><label for="cc">Код из SMS</label>
+        <input class="input" id="cc" name="code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" data-mask="digits" required autofocus></div>
+      <button class="btn btn-primary btn-lg btn-block" type="submit">Войти</button>
+    </form>
+    <form method="post" action="/client/reset" style="text-align:center">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <button class="link-btn" type="submit">Изменить номер договора или телефон</button>
+    </form>
+  <% } %>
+  <p class="small muted" style="text-align:center">Для сотрудников магазина — <a href="/login">вход в кабинет продавца</a></p>
+</div>
+<script src="/static/js/app.js?v=<%= locals.v %>"></script>
+</body>
+</html>

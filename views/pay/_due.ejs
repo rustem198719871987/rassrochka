@@ -1,0 +1,21 @@
+<%# Карточка «сколько и когда платить» %>
+  <% if (a.status === 'closed') { %>
+    <div class="p-card due"><h2>Рассрочка погашена</h2><p class="muted">Спасибо! Все платежи по договору получены.</p></div>
+  <% } else if (debt.rows.length) { %>
+    <div class="p-card due overdue">
+      <div class="muted">Просрочка платежа</div>
+      <div class="days"><%= debt.maxDays %> дн.</div>
+      <div class="sum">К оплате <%= money(debt.overdue) %></div>
+      <p class="small muted">Оплатите как можно скорее или свяжитесь с магазином.</p>
+    </div>
+  <% } else if (next) { %>
+    <div class="p-card due">
+      <div class="muted">Следующий платёж <%= date(next.due_date) %></div>
+      <div class="days"><%= next.daysLeft === 0 ? 'Сегодня' : next.daysLeft %></div>
+      <% const n10 = next.daysLeft % 10, n100 = next.daysLeft % 100;
+         const word = n10 === 1 && n100 !== 11 ? 'день' : n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14) ? 'дня' : 'дней'; %>
+      <div class="muted"><%= next.daysLeft === 0 ? '' : `${word} до платежа` %></div>
+      <div class="sum" style="margin-top:8px"><%= money(next.remaining) %></div>
+    </div>
+  <% } %>
+

@@ -118,6 +118,8 @@ app.use((req, res, next) => {
 
 app.use(u.csrf);
 
+// личный кабинет клиента: вход по номеру договора и коду из SMS
+app.use('/client', require('./routes/client'));
 app.use(require('./routes/auth'));
 app.use('/app', require('./routes/seller'));
 app.use('/admin', require('./routes/admin'));

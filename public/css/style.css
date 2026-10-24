@@ -387,3 +387,28 @@ table.table { width: 100%; border-collapse: collapse; font-size: 14px; }
 .mail-log { margin-top: 14px; border-top: 1px solid var(--line); }
 .mail-row { padding: 10px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 .mail-row .pill { margin-right: 6px; }
+
+/* Страница оплаты и личный кабинет клиента */
+body.client-page { background: var(--surface); }
+  .p-head { background: var(--black); padding: 14px 16px; }
+  .p-head .logo-word { font-size: 18px; }
+  .p-head .logo img { width: 30px; height: 30px; }
+  .p-wrap { max-width: 640px; margin: 0 auto; padding: 18px 16px 48px; display: grid; gap: 14px; }
+  .p-card { background: var(--white); border-radius: 18px; padding: 20px; }
+  .due { text-align: center; }
+  .due .days { font-size: 56px; font-weight: 800; line-height: 1; margin: 6px 0; font-variant-numeric: tabular-nums; }
+  .due.overdue .days { color: var(--err); }
+  .due .sum { font-size: 22px; font-weight: 800; }
+  .row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+  .row:last-child { border-bottom: 0; }
+  .qr-box img { width: 220px; height: 220px; }
+.client-head { display: flex; align-items: center; justify-content: space-between; }
+.client-head .link-btn { color: var(--yellow); }
+.client-tabs { display: flex; gap: 8px; overflow-x: auto; }
+.client-tabs a { flex: 0 0 auto; padding: 10px 14px; border-radius: 14px; background: var(--white); color: var(--ink); text-decoration: none; font-weight: 700; border: 2px solid transparent; }
+.client-tabs a span { display: block; font-size: 12px; font-weight: 500; color: var(--muted); max-width: 160px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.client-tabs a.active { border-color: var(--black); }
+.progress { height: 8px; border-radius: 8px; background: var(--surface); overflow: hidden; margin: 12px 0 4px; }
+.progress span { display: block; height: 100%; background: var(--yellow); }
+.sbp-qr { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.sbp-qr img { width: 120px; height: 120px; }
