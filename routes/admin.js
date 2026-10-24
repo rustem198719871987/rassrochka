@@ -497,6 +497,8 @@ router.get('/settings', (req, res) => res.render('admin/settings', {
   mailLog: mailbox.recent(15),
   mailSpam: mailbox.spamCount(),
   mailSpamRecent: mailbox.spamRecent(),
+  androidPackage: getSecret('android_package') || 'top.rassrochka.client',
+  androidSha: getSecret('android_sha256'),
   fsspProvider: fssp.provider(),
   fsspTest: (() => { const t = req.session.fsspTest; delete req.session.fsspTest; return t; })(),
   bkiOn: Boolean(process.env.BKI_API_URL),
@@ -536,6 +538,20 @@ router.post('/settings/mail', (req, res) => {
     u.flash(req, 'ok', list.length ? `Разрешённых отправителей: ${list.length}` : 'Список отправителей очищен — письма с выписками не принимаются');
   }
   res.redirect('/admin/settings#mail');
+});
+
+// Приложение для Android (TWA): имя пакета и отпечаток SHA-256 ключа подписи — для /.well-known/assetlinks.json
+router.post('/settings/android', (req, res) => {
+  const pkg = u.str(req.body.android_package, 100) || 'top.rassrochka.client';
+  const fps = String(req.body.android_sha256 || '').toUpperCase().split(/[\s,;]+/).filter(Boolean);
+  if (!/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/i.test(pkg)) u.flash(req, 'error', 'Имя пакета вида top.rassrochka.client');
+  else if (fps.some((f) => !/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/.test(f))) u.flash(req, 'error', 'Отпечаток SHA-256 — 32 пары символов через двоеточие (AB:CD:…)');
+  else {
+    setSetting('android_package', pkg);
+    setSetting('android_sha256', fps.join('\n'));
+    u.flash(req, 'ok', fps.length ? 'Приложение подтверждено: оно будет открываться без адресной строки' : 'Сохранено');
+  }
+  res.redirect('/admin/settings#android');
 });
 
 router.post('/settings/mail-allow', (req, res) => {

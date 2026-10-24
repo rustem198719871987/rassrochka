@@ -42,6 +42,18 @@ app.get('/robots.txt', (req, res) => res.type('text/plain').send('User-agent: *\
 
 app.use('/static', express.static(path.join(__dirname, 'public'), { maxAge: '1h' }));
 
+// Приложение клиента (PWA): описание, фоновый скрипт на весь сайт, подтверждение владения сайтом для Android-приложения
+app.get('/manifest.webmanifest', (req, res) => res.type('application/manifest+json').sendFile(path.join(__dirname, 'public/app/manifest.webmanifest')));
+app.get('/sw.js', (req, res) => res.set({ 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/' }).type('application/javascript').sendFile(path.join(__dirname, 'public/app/sw.js')));
+app.get('/.well-known/assetlinks.json', (req, res) => {
+  const { getSecret } = require('./lib/db');
+  const fp = getSecret('android_sha256');
+  res.json(fp ? [{
+    relation: ['delegate_permission/common.handle_all_urls'],
+    target: { namespace: 'android_app', package_name: getSecret('android_package') || 'top.rassrochka.client', sha256_cert_fingerprints: fp.split(/\s+/) },
+  }] : []);
+});
+
 // Второй рубеж от потока запросов (первый — nginx): не больше 300 запросов в минуту с одного адреса
 app.use(u.limitByIp('all', 300, 60e3));
 

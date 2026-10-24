@@ -117,6 +117,20 @@
         </div>
       <% } %>
     </div>
+    <form method="post" action="/admin/settings/android" class="card" id="android" autocomplete="off">
+      <input type="hidden" name="_csrf" value="<%= csrf %>">
+      <h2>Приложение для Android</h2>
+      <p class="small muted" style="margin-top:0">Кабинет клиента устанавливается на телефон как приложение прямо с сайта (кнопка «Установить приложение» в кабинете).
+        Для Google Play или RuStore соберите файл на <b>pwabuilder.com</b>: адрес <b><%= (locals.publicUrl || 'https://rassrochka.top').replace(/\/$/, '') %>/client</b> → Android → имя пакета ниже.
+        Из полученного архива (файл <i>assetlinks.json</i> или «signing key info») вставьте сюда отпечаток SHA-256 — тогда приложение откроется без адресной строки.
+        <b>Храните ключ подписи (signing.keystore) из архива</b>: без него обновить приложение в магазине будет нельзя.</p>
+      <div class="grid">
+        <div class="field col-12"><label for="ap2">Имя пакета</label><input class="input" id="ap2" name="android_package" value="<%= androidPackage %>"></div>
+        <div class="field col-12"><label for="as">Отпечаток SHA-256 ключа подписи</label><textarea class="input" id="as" name="android_sha256" rows="2" placeholder="AB:CD:EF:…"><%= androidSha %></textarea>
+          <div class="hint">Если приложение есть и в Google Play, и в RuStore с разными ключами — по одному отпечатку в строке</div></div>
+      </div>
+      <button class="btn btn-dark" type="submit">Сохранить</button>
+    </form>
     <form method="post" action="/admin/settings/fssp-test" class="card" autocomplete="off">
       <input type="hidden" name="_csrf" value="<%= csrf %>">
       <h2>Проверить ФССП</h2>

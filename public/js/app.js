@@ -118,6 +118,26 @@
     }, Number(auto.dataset.autorefresh) * 1000);
   }
 
+  // ---------- приложение клиента: фоновый скрипт и кнопка «Установить приложение» ----------
+  if (document.body.classList.contains('client-page') && 'serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
+  }
+  var installBtn = document.querySelector('[data-install]');
+  var installEvent = null;
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    installEvent = e;
+    if (installBtn) installBtn.hidden = false;
+  });
+  if (installBtn) {
+    installBtn.addEventListener('click', function () {
+      if (!installEvent) return;
+      installEvent.prompt();
+      installEvent.userChoice.finally(function () { installEvent = null; installBtn.hidden = true; });
+    });
+  }
+  window.addEventListener('appinstalled', function () { if (installBtn) installBtn.hidden = true; });
+
   // ---------- кликабельные строки таблиц ----------
   document.querySelectorAll('tr[data-href]').forEach(function (tr) {
     tr.addEventListener('click', function (e) {

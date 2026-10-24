@@ -7,5 +7,11 @@
   <title><%= title %> — Рассрочка.Топ</title>
   <link rel="icon" href="/static/img/logo-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/static/css/style.css?v=<%= locals.v %>">
+  <% if (locals.bodyClass === 'client-page') { %>
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#111111">
+  <link rel="apple-touch-icon" href="/static/app/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <% } %>
 </head>
 <body<% if (locals.bodyClass) { %> class="<%= bodyClass %>"<% } %>>
