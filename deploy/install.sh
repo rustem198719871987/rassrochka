@@ -253,7 +253,7 @@ else
 
   log "Проверка"
   for i in $(seq 1 20); do
-    if curl -fsS -o /dev/null "http://127.0.0.1:${PORT}/login"; then break; fi
+    if curl -fs -o /dev/null "http://127.0.0.1:${PORT}/login"; then break; fi
     sleep 1
   done
   curl -fsS -o /dev/null "http://127.0.0.1:${PORT}/login" || { journalctl -u rassrochka -n 40 --no-pager; die "Сайт не запустился — журнал выше"; }
