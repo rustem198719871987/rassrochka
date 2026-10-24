@@ -149,7 +149,7 @@ router.post('/sellers/:sellerId/password', (req, res) => {
 });
 
 // ---------- ИП ----------
-const IP_COLS = ['name', 'full_name', 'inn', 'ogrnip', 'address', 'bank_name', 'bik', 'account', 'corr_account', 'phone', 'email', 'sbp_url'];
+const IP_COLS = ['name', 'full_name', 'inn', 'ogrnip', 'address', 'bank_name', 'bik', 'account', 'corr_account', 'phone', 'email', 'sbp_url', 'sber_login', 'sber_api_url'];
 
 function readIp(body) {
   const errors = {};
@@ -169,7 +169,18 @@ function readIp(body) {
   // ссылка СБП открывается у клиента — только https-адрес, без пробелов и кавычек
   if (d.sbp_url && !/^https:\/\/[a-z0-9.-]+\.[a-z]{2,}(\/[^\s"'<>]*)?$/i.test(d.sbp_url)) errors.sbp_url = 'Ссылка должна начинаться с https://';
   d.sbp_url = d.sbp_url || null;
+  // интернет-эквайринг Сбербанка: логин API магазина и (необязательно) адрес шлюза — для тестового стенда
+  d.sber_login = d.sber_login || null;
+  if (d.sber_api_url && !/^https:\/\/[a-z0-9.-]+\.sberbank\.ru(\/[^\s"'<>]*)?$/i.test(d.sber_api_url)) errors.sber_api_url = 'Адрес шлюза Сбербанка вида https://…sberbank.ru/payment/rest/';
+  d.sber_api_url = d.sber_api_url || null;
   return { d, errors };
+}
+
+// Пароль API эквайринга: пустое поле — оставить прежний, «-» — удалить. В базе только в зашифрованном виде.
+function saveSberPassword(ipId, value) {
+  const v = u.str(value, 200);
+  if (!v) return;
+  db.prepare('UPDATE entrepreneurs SET sber_password = ? WHERE id = ?').run(v === '-' ? null : storage.encryptText(v), ipId);
 }
 
 router.get('/ips', (req, res) => {
@@ -184,7 +195,8 @@ router.get('/ips/new', (req, res) => res.render('admin/ip', { title: 'Новый
 router.post('/ips/new', (req, res) => {
   const { d, errors } = readIp(req.body);
   if (Object.keys(errors).length) return res.status(400).render('admin/ip', { title: 'Новый ИП', ip: null, errors, form: req.body });
-  db.prepare(`INSERT INTO entrepreneurs (${IP_COLS.join(', ')}) VALUES (${IP_COLS.map(() => '?').join(', ')})`).run(...IP_COLS.map((c) => d[c]));
+  const id = db.prepare(`INSERT INTO entrepreneurs (${IP_COLS.join(', ')}) VALUES (${IP_COLS.map(() => '?').join(', ')})`).run(...IP_COLS.map((c) => d[c])).lastInsertRowid;
+  saveSberPassword(id, req.body.sber_password);
   u.flash(req, 'ok', `${d.name} добавлен`);
   res.redirect('/admin/ips');
 });
@@ -197,13 +209,14 @@ router.param('ipId', (req, res, next, id) => {
 
 router.get('/ips/:ipId', (req, res) => {
   const sellers = db.prepare(`SELECT u.* FROM users u JOIN user_entrepreneurs ue ON ue.user_id = u.id WHERE ue.entrepreneur_id = ?`).all(req.ipRow.id);
-  res.render('admin/ip', { title: req.ipRow.name, ip: req.ipRow, sellers, form: req.ipRow });
+  res.render('admin/ip', { title: req.ipRow.name, ip: req.ipRow, sellers, form: { ...req.ipRow, sber_password: '' }, siteUrl: u.publicBase(req) });
 });
 
 router.post('/ips/:ipId', (req, res) => {
   const { d, errors } = readIp(req.body);
   if (Object.keys(errors).length) return res.status(400).render('admin/ip', { title: req.ipRow.name, ip: req.ipRow, sellers: [], errors, form: req.body });
   db.prepare(`UPDATE entrepreneurs SET ${IP_COLS.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`).run(...IP_COLS.map((c) => d[c]), req.ipRow.id);
+  saveSberPassword(req.ipRow.id, req.body.sber_password);
   u.flash(req, 'ok', 'Реквизиты сохранены. Новые договоры будут оформляться с ними.');
   res.redirect(`/admin/ips/${req.ipRow.id}`);
 });
@@ -309,7 +322,7 @@ router.post('/statements', (req, res) => {
     }
     try {
       const { upload, stats } = statement.importStatement(req.file.buffer, { filename: u.str(req.file.originalname, 200), userId: req.user.id });
-      u.flash(req, 'ok', `Поступлений: ${stats.incoming}. Зачтено автоматически: ${stats.matched}, на проверку: ${stats.suggested + stats.unmatched}` +
+      u.flash(req, 'ok', `Поступлений: ${stats.incoming}. Зачтено автоматически: ${stats.matched}, на проверку: ${stats.suggested + stats.unmatched}` + (stats.ignored ? `, эквайринг Сбербанка (уже учтено): ${stats.ignored}` : '') +
         (stats.duplicates ? `, уже загружались раньше: ${stats.duplicates}` : ''));
       res.redirect(`/admin/statements/${upload}`);
     } catch (e) {

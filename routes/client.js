@@ -9,6 +9,7 @@ const sms = require('../lib/sms');
 const payments = require('../lib/payments');
 const statement = require('../lib/statement');
 const { paymentQr } = require('../lib/qr');
+const sber = require('../lib/sber');
 
 const router = express.Router();
 const SESSION_MS = 30 * 60e3; // кабинет закрывается после 30 минут бездействия
@@ -52,8 +53,11 @@ router.get('/', async (req, res) => {
   const qr = toPay ? await paymentQr(ip, { sum: toPay, purpose: `Оплата по договору рассрочки ${a.number}`, payer: a }) : null;
   const sbpQr = ip.sbp_url && toPay ? await QRCode.toDataURL(ip.sbp_url, { errorCorrectionLevel: 'M', margin: 1, width: 220 }) : null;
   const paid = schedule.reduce((s, p) => s + (p.paid_amount || 0), 0);
+  const online = db.prepare("SELECT * FROM online_payments WHERE application_id = ? AND status IN ('paid','created') ORDER BY id DESC LIMIT 5").all(a.id);
+  const notice = req.session.clientNotice; delete req.session.clientNotice;
   res.render('client/cabinet', {
     title: `Рассрочка ${a.number}`, bodyClass: 'client-page', a, ip, apps, schedule, next, debt, toPay, qr, sbpQr, paid,
+    sberOn: sber.configured(ip), online, notice, ONLINE_STATUS: sber.STATUS,
     left: schedule.reduce((s, p) => s + p.remaining, 0), daysLabel: payments.daysLabel,
   });
 });
@@ -96,6 +100,40 @@ router.post('/login', (req, res, next) => {
     req.session.client = { phone: p.phone, appId: p.appId, until: Date.now() + SESSION_MS };
     res.redirect('/client');
   });
+});
+
+// Онлайн-оплата через Сбербанк: создаём заказ и отправляем клиента на платёжную страницу банка
+router.post('/pay', async (req, res) => {
+  if (!req.client) return res.redirect('/client');
+  const a = clientApps(req.client.phone).find((x) => x.id === Number(req.body.app) && x.status === 'signed');
+  if (!a) return res.redirect('/client');
+  const ip = db.prepare('SELECT * FROM entrepreneurs WHERE id = ?').get(a.entrepreneur_id);
+  const left = db.prepare('SELECT coalesce(sum(amount - paid_amount), 0) s FROM payments WHERE application_id = ?').get(a.id).s;
+  const amount = u.rubToKop(req.body.amount);
+  const back = (msg) => { req.session.clientNotice = { type: 'error', msg }; res.redirect(`/client?c=${a.id}#pay-online`); };
+  if (!(amount >= 100)) return back('Минимальная сумма — 1 ₽');
+  if (amount > left) return back(`Сумма больше остатка по договору (${u.moneyFmt(left)})`);
+  if (!u.rateLimit(`client-pay:${a.id}`, 10, 3600e3)) return back('Слишком много попыток оплаты, попробуйте позже');
+  try {
+    const { formUrl } = await sber.createPayment({ app: a, ip, amount, siteUrl: u.publicBase(req) });
+    res.redirect(303, formUrl);
+  } catch (e) {
+    back(e.message);
+  }
+});
+
+// Возврат со страницы банка: статус спрашиваем у Сбера сами, а не верим адресу
+router.get('/pay/:id/return', async (req, res) => {
+  const op = db.prepare('SELECT * FROM online_payments WHERE id = ?').get(Number(req.params.id));
+  if (!req.client || !op || !clientApps(req.client.phone).some((x) => x.id === op.application_id)) return res.redirect('/client');
+  let fresh = op;
+  try { fresh = await sber.refresh(op.id); } catch (e) { console.error('[сбер] статус не получен:', e.message); }
+  req.session.clientNotice = fresh.status === 'paid'
+    ? { type: 'ok', msg: `Оплата ${u.moneyFmt(fresh.paid_amount)} получена и уже учтена в графике. Спасибо!` }
+    : fresh.status === 'created'
+      ? { type: 'info', msg: 'Ждём подтверждения от банка. Если вы оплатили, платёж появится в графике в течение нескольких минут.' }
+      : { type: 'error', msg: 'Оплата не прошла. Попробуйте ещё раз или выберите другой способ.' };
+  res.redirect(`/client?c=${op.application_id}`);
 });
 
 router.post('/reset', (req, res) => {

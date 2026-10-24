@@ -17,9 +17,27 @@
     </div>
   <% } %>
 
+  <% if (notice) { %><div class="alert alert-<%= notice.type %>" style="margin:0"><%= notice.msg %></div><% } %>
   <%- include('../pay/_due') %>
 
-  <% if (sbpQr) { %>
+  <% if (sberOn && a.status === 'signed' && left > 0) { %>
+    <form method="post" action="/client/pay" class="p-card sbp-card" id="pay-online">
+      <input type="hidden" name="_csrf" value="<%= csrf %>"><input type="hidden" name="app" value="<%= a.id %>">
+      <h3>Оплатить онлайн</h3>
+      <p class="small muted" style="margin-top:0">Через СБП или картой на защищённой странице Сбербанка. Платёж сразу появится в графике.</p>
+      <div class="field"><label for="pa">Сумма, ₽</label>
+        <input class="input" id="pa" name="amount" inputmode="decimal" value="<%= ((toPay || a.monthly_payment) / 100).toFixed(2).replace(/\.00$/, '') %>" required>
+        <div class="hint">Можно внести больше — остаток по договору <%= money(left) %></div></div>
+      <button class="btn btn-primary btn-lg btn-block" type="submit">Оплатить онлайн — СБП или картой</button>
+      <% if (online.length) { %>
+        <div class="small muted" style="margin-top:12px">
+          <% for (const o of online) { %><div><%= dateTime(o.created_at) %> · <%= money(o.paid_amount || o.amount) %> · <%= ONLINE_STATUS[o.status] %></div><% } %>
+        </div>
+      <% } %>
+    </form>
+  <% } %>
+
+  <% if (sbpQr && !sberOn) { %>
     <div class="p-card sbp-card">
       <h3>Оплатить через СБП</h3>
       <p class="small muted" style="margin-top:0">Без комиссии, из приложения любого банка. Сумма к оплате: <b style="color:var(--ink)"><%= money(toPay) %></b> — введите её в приложении банка.</p>

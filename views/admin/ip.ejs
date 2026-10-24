@@ -28,9 +28,23 @@
     </div>
   </fieldset>
   <fieldset>
+    <legend>Онлайн-оплата через Сбербанк (СБП и карты)</legend>
+    <p class="small muted" style="margin-top:0">Данные магазина из договора интернет-эквайринга Сбербанка: логин и пароль API (обычно логин оканчивается на «-api»).
+      Клиенты смогут платить из личного кабинета, оплата сразу попадёт в график. Попросите Сбер включить оплату через СБП на платёжной странице
+      и указать адрес уведомлений: <b><%= (locals.siteUrl || 'https://rassrochka.top') %>/pay/sber/callback</b>.
+      <% if (ip && ip.sber_login) { %><br><b style="color:var(--ok)">✓ Подключено</b><% } %></p>
+    <div class="grid">
+      <%- include('../partials/field', { name: 'sber_login', label: 'Логин API магазина', col: 'col-6', attrs: 'autocomplete="off"' }) %>
+      <%- include('../partials/field', { name: 'sber_password', label: 'Пароль API', type: 'password', col: 'col-6', value: '',
+        placeholder: ip && ip.sber_password ? '•••••• сохранён' : 'не указан', hint: 'Пустое поле — оставить прежний, «-» — удалить', attrs: 'autocomplete="new-password"' }) %>
+      <%- include('../partials/field', { name: 'sber_api_url', label: 'Адрес шлюза (необязательно)', placeholder: 'по умолчанию — рабочий шлюз Сбербанка',
+        hint: 'Только для тестового стенда: адрес из письма Сбербанка, например https://3dsec.sberbank.ru/payment/rest/' }) %>
+    </div>
+  </fieldset>
+  <fieldset>
     <legend>Оплата через СБП</legend>
     <div class="grid">
-      <%- include('../partials/field', { name: 'sbp_url', label: 'Ссылка СБП из банка (необязательно)', placeholder: 'https://qr.nspk.ru/…',
+      <%- include('../partials/field', { name: 'sbp_url', label: 'Ссылка СБП из банка (если нет эквайринга)', placeholder: 'https://qr.nspk.ru/…',
         hint: 'В интернет-банке ИП: «СБП» → «QR-код / платёжная ссылка» (сумму вводит клиент). Клиенты увидят кнопку «Оплатить через СБП» в личном кабинете. Такие оплаты приходят в выписке без номера договора — сайт найдёт клиента по ФИО и предложит зачесть.' }) %>
     </div>
   </fieldset>

@@ -23,7 +23,7 @@ app.disable('x-powered-by');
 // Сайт закрыт от поисковых систем: запрет индексации на всех ответах, включая файлы и страницы оплаты.
 const CSP = [
   "default-src 'self'", "script-src 'self'", "style-src 'self' 'unsafe-inline'", "img-src 'self' data: blob:",
-  "font-src 'self'", "connect-src 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'self'", "frame-ancestors 'none'",
+  "font-src 'self'", "connect-src 'self'", "object-src 'none'", "base-uri 'none'", "form-action 'self' https://*.sberbank.ru", "frame-ancestors 'none'",
 ].join('; ');
 app.use((req, res, next) => {
   res.set({
@@ -151,7 +151,7 @@ const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '0.0.0.0';
 const server = app.listen(PORT, HOST, () => {
   console.log(`Рассрочка.Топ запущена: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
-  if (process.env.JOBS !== 'off') { jobs.start(); require('./lib/mailbox').start(); }
+  if (process.env.JOBS !== 'off') { jobs.start(); require('./lib/mailbox').start(); require('./lib/sber').start(); }
 });
 // медленные соединения не держат сервер: заголовки — до 20 с, весь запрос (с фото) — до 2 минут
 server.headersTimeout = 20e3;

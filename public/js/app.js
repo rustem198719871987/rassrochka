@@ -119,7 +119,8 @@
   }
 
   // ---------- приложение клиента: фоновый скрипт и кнопка «Установить приложение» ----------
-  if (document.body.classList.contains('client-page') && 'serviceWorker' in navigator) {
+  // на всех страницах: по ним проверяют приложение сервисы упаковки (PWABuilder); личные страницы скрипт не сохраняет
+  if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
   }
   var installBtn = document.querySelector('[data-install]');

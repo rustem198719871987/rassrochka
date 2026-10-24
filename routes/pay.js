@@ -8,6 +8,13 @@ const u = require('../lib/util');
 
 const router = express.Router();
 
+// Уведомление Сбербанка об операции по заказу. Параметрам не доверяем: по mdOrder сами спрашиваем статус у банка.
+router.get('/sber/callback', async (req, res) => {
+  const op = db.prepare('SELECT id FROM online_payments WHERE bank_order_id = ?').get(String(req.query.mdOrder || ''));
+  if (op) await require('../lib/sber').refresh(op.id).catch((e) => console.error('[сбер] уведомление:', e.message));
+  res.type('text/plain').send('OK');
+});
+
 router.get('/:token', async (req, res) => {
   res.set({ 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex' });
   const token = String(req.params.token || '');
