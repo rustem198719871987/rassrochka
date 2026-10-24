@@ -189,6 +189,10 @@ curl -fsSL -H "Authorization: token ТОКЕН" https://raw.githubusercontent.co
 Ключи генерируются на сервере в `/etc/rassrochka.env`; пароль администратора показывается в конце установки.
 
 - Обновить до последней версии: `rassrochka-update` (приватный репозиторий: `GITHUB_TOKEN=... rassrochka-update`)
+  Код качается по одному файлу и только изменённые файлы (`deploy/fetch-code.sh`): с raw.githubusercontent.com,
+  при сбое — с зеркала cdn.jsdelivr.net, каждый файл сверяется с контрольной суммой из GitHub. Так обновление
+  проходит и тогда, когда GitHub с российского сервера обрывает `git clone`. Библиотеки (`npm ci`) переустанавливаются,
+  только если изменился `package-lock.json`. Повторный запуск установщика без `DOMAIN` сохраняет подключённый домен.
 - Журнал: `journalctl -u rassrochka -f`
 - Данные: `/var/lib/rassrochka`, код: `/opt/rassrochka`
 

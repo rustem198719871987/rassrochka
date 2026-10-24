@@ -35,6 +35,11 @@ die() { printf '\n\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 
 export DEBIAN_FRONTEND=noninteractive
 
+# домен уже подключён раньше — берём его из настроек, чтобы повторный запуск не выключил HTTPS
+if [ -z "${DOMAIN:-}" ] && [ -f "$ENV_FILE" ]; then
+  DOMAIN="$(sed -n 's#^PUBLIC_URL=https://\([^/]*\).*#\1#p' "$ENV_FILE")"
+fi
+
 log "Системные пакеты"
 apt-get update -qq
 apt-get install -y -qq curl ca-certificates gnupg git nginx sqlite3 build-essential python3 ufw openssl >/dev/null
@@ -57,72 +62,26 @@ install -d -o "$APP_USER" -g "$APP_USER" -m 700 "$DATA_DIR"
 install -d -o root -g root -m 700 "$BACKUP_DIR"
 
 log "Код сайта"
-# загрузчик кода встроен сюда, чтобы установщику не нужно было ничего докачивать;
-# он же используется командой rassrochka-update
+# загрузчик кода (он же используется командой rassrochka-update): из этой папки, если установщик
+# запущен из уже скачанного кода, иначе — с GitHub или его зеркала
 FETCH=/usr/local/bin/rassrochka-fetch-code
-cat > "$FETCH" <<'FETCH_EOF'
-#!/usr/bin/env bash
-# Скачивает код сайта в /opt/rassrochka: сначала через git, а если GitHub по git не отвечает
-# (бывает с российских серверов) — архивом с codeload.github.com. Данные сайта не затрагиваются.
-set -euo pipefail
-REPO_URL="${REPO_URL:-https://github.com/rustem198719871987/rassrochka.git}"
-BRANCH="${BRANCH:-main}"
-APP_DIR="${APP_DIR:-/opt/rassrochka}"
-APP_USER="${APP_USER:-rassrochka}"
-GIT_WAIT="${GIT_WAIT:-120}"
-
 OWNER_REPO="$(printf '%s' "$REPO_URL" | sed -E 's#^https://github.com/##; s#\.git$##')"
-AUTH_URL="$REPO_URL"
-CURL_AUTH=()
-if [ -n "${GITHUB_TOKEN:-}" ]; then
-  AUTH_URL="${REPO_URL/https:\/\//https://x-access-token:${GITHUB_TOKEN}@}"
-  CURL_AUTH=(-H "Authorization: token ${GITHUB_TOKEN}")
-fi
-
-TMP="$(mktemp -d)"
-trap 'rm -rf "$TMP"' EXIT
-chown "$APP_USER" "$TMP"
-SRC="$TMP/src"
-# git обрывается, если скорость ниже 1 КБ/с дольше 20 секунд, и в любом случае через GIT_WAIT секунд
-GIT_OPTS=(-c http.lowSpeedLimit=1000 -c http.lowSpeedTime=20)
-
-got=""
-if [ "${FORCE_ARCHIVE:-0}" != "1" ]; then
-  echo "Скачиваю через git…"
-  if timeout "$GIT_WAIT" sudo -u "$APP_USER" git "${GIT_OPTS[@]}" clone -q --depth 50 --branch "$BRANCH" "$AUTH_URL" "$SRC" </dev/null; then
-    sudo -u "$APP_USER" git -C "$SRC" remote set-url origin "$REPO_URL"
-    got="git"
-  else
-    echo "GitHub не ответил по git за ${GIT_WAIT} сек."
-    rm -rf "$SRC"
-  fi
-fi
-
-if [ -z "$got" ]; then
-  echo "Скачиваю архивом…"
-  for url in "https://codeload.github.com/${OWNER_REPO}/tar.gz/refs/heads/${BRANCH}" \
-             "https://github.com/${OWNER_REPO}/archive/refs/heads/${BRANCH}.tar.gz"; do
-    if curl -fsSL --retry 3 --connect-timeout 20 --max-time 300 "${CURL_AUTH[@]}" "$url" -o "$TMP/code.tgz"; then
-      mkdir -p "$SRC"
-      tar -xzf "$TMP/code.tgz" -C "$SRC" --strip-components=1
-      got="archive"
-      break
-    fi
-  done
-fi
-[ -n "$got" ] || { echo "✗ Не удалось скачать код ни через git, ни архивом. Проверьте доступ к github.com с сервера." >&2; exit 1; }
-[ -f "$SRC/server.js" ] || { echo "✗ В скачанном коде нет server.js" >&2; exit 1; }
-
-# заменяем код, сохраняя установленные библиотеки (их обновит npm ci)
-find "$APP_DIR" -mindepth 1 -maxdepth 1 ! -name node_modules ! -name .npm ! -name .npmrc -exec rm -rf {} +
-cp -a "$SRC/." "$APP_DIR/"
-chown -R "$APP_USER":"$APP_USER" "$APP_DIR"
-if [ -d "$APP_DIR/.git" ]; then
-  echo "Версия: $(sudo -u "$APP_USER" git -C "$APP_DIR" log --oneline -1)"
+SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || true)"
+if [ -f "$SELF_DIR/fetch-code.sh" ] && [ -f "$SELF_DIR/install.sh" ]; then
+  install -m 750 "$SELF_DIR/fetch-code.sh" "$FETCH"
 else
-  echo "Версия: архив ветки ${BRANCH} от $(date '+%d.%m.%Y %H:%M')"
+  got=""
+  CURL_AUTH=()
+  if [ -n "${GITHUB_TOKEN:-}" ]; then CURL_AUTH=(-H "Authorization: token ${GITHUB_TOKEN}"); fi
+  for url in "https://raw.githubusercontent.com/${OWNER_REPO}/${BRANCH}/deploy/fetch-code.sh" \
+             "https://cdn.jsdelivr.net/gh/${OWNER_REPO}@${BRANCH}/deploy/fetch-code.sh"; do
+    if curl -fsSL --connect-timeout 10 --max-time 60 --retry 4 --retry-delay 2 --retry-all-errors \
+         "${CURL_AUTH[@]}" "$url" -o "$FETCH.tmp" \
+       && head -1 "$FETCH.tmp" | grep -q '^#!/usr/bin/env bash'; then got=1; break; fi
+  done
+  [ -n "$got" ] || die "Не удалось скачать загрузчик кода с GitHub. Попробуйте через пару минут."
+  mv "$FETCH.tmp" "$FETCH"
 fi
-FETCH_EOF
 chmod 750 "$FETCH"
 # SKIP_CODE=1 — оставить уже установленный код (например, только подключить домен, если GitHub не отвечает)
 if [ "${SKIP_CODE:-0}" = "1" ] && [ -f "$APP_DIR/server.js" ]; then
